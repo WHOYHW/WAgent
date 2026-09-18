@@ -1,0 +1,46 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试与检查工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- 本地数据与密钥 ----------
+# SQLite 库文件（审计日志 / 工单，本地运行产物）
+*.db
+*.sqlite3
+*.db-journal
+
+# 环境变量文件（含 LLM Key、教务接口 Token、JWT Secret）
+.env
+.env.local
+.env.*.local
+
+# ---------- IDE ----------
+.idea/
+.vscode/
+*.iml
+
+# ---------- Agent 本地工作数据 ----------
+# WorkBuddy 工作区记忆与本地状态，不属于项目源码
+.workbuddy/
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
