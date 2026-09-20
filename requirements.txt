@@ -14,12 +14,14 @@ pydantic-settings>=2.5
 sqlalchemy>=2.0
 alembic>=1.13
 asyncpg>=0.29
+aiosqlite>=0.20      # 开发/测试默认 SQLite 异步驱动（零配置；生产用 asyncpg + PostgreSQL）
 redis>=5.0
 
 # ---- 调度与 HTTP 客户端（C4 降级语义：重试/超时/源系统调用）----
 apscheduler>=3.10
 httpx>=0.27
 tenacity>=8.5
+pyyaml>=6.0          # 降级文案模板 degrade.yaml（C4）
 
 # ---- 会话身份与 LLM（C2：student_id 注入 + Function Calling）----
 pyjwt>=2.9

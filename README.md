@@ -67,9 +67,8 @@ WAgent/
 ## 六、开发环境
 
 ```bash
-cd backend
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install fastapi uvicorn pydantic pydantic-settings pyjwt
+pip install -r requirements.txt
 ```
 
 配置通过环境变量或 `backend/.env` 注入（该文件不入库）：
