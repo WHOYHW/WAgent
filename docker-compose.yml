@@ -1,0 +1,28 @@
+# 校园智能体（WAgent）服务编排。
+# 当前阶段只含 Redis（缓存后端，C4）；后端/数据库容器在容器化阶段补充。
+#
+# 用法：
+#   docker compose up -d          # 启动 Redis
+#   docker compose down           # 停止（不删数据卷）
+# 后端启用 Redis：backend/.env 写 CACHE_BACKEND=redis（默认 memory，见 app/config.py）。
+
+services:
+  redis:
+    image: redis:8-alpine
+    container_name: agent-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+    # 缓存数据可再生（进程内缓存可降级兜底），不挂持久卷；
+    # 需要跨重启保留陈旧缓存时再启用下行：
+    # volumes:
+    #   - redis-data:/data
+    # command: ["redis-server", "--appendonly", "yes"]
+
+# volumes:
+#   redis-data:

@@ -1,0 +1,18 @@
+# C4 降级文案模板（§3.4.2 R4.2）
+# 按 degrade_status + tool 索引；改此文件即时生效，无需发版。
+# 空串表示该状态无需额外提示（溯源标注仍会展示）。
+
+degrade_templates:
+  fresh:
+    _default: ""                      # 无额外提示
+  live_ok:
+    _default: ""
+  stale_cache:
+    timetable_query: "⚠️ 数据同步于 {synced_at:%H:%M}，可能不是最新，建议以教务系统为准"
+    library_loans: "⚠️ 借阅数据同步于 {synced_at:%H:%M}，可能存在延迟"
+  unavailable:
+    timetable_query: "教务系统暂时无法访问，你可以稍后重试，或直接登录教务系统查看"
+    grade_query: "成绩系统暂时无法访问，请稍后重试或联系学院教务办"
+    library_loans: "图书馆系统暂时无法访问，可到馆或稍后重试"
+  write_failed:
+    library_renew: "续借未成功（原因：{reason}），可到流通台办理"

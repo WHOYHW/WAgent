@@ -1,0 +1,5 @@
+# 测试依赖（CI / 本地跑 pytest 用）
+pytest>=9.1
+pytest-asyncio>=1.4
+pytest-cov>=7.1
+respx>=0.23
