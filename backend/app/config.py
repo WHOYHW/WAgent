@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     session_history_limit: int = 20             # 加载历史的默认条数（超过即触发压缩）
     session_compress_tail: int = 6              # 压缩时保留最近 N 条（安全阀：≥4）
 
+    # ---- 编排层（C2 · 子任务 2）----
+    orchestrator_tool_budget: int = 6               # 单轮对话工具调用上限（防 LLM 死循环）
+    orchestrator_summary_max_chars: int = 200       # 会话压缩摘要字数上限（硬截断）
+    orchestrator_llm_timeout_seconds: float = 15.0  # 单次 LLM 流式请求超时（子任务 3 消费）
+    orchestrator_history_fetch_limit: int = 60      # 历史探测/上下文窗口（> history_limit
+                                                    # 才能检测超阈值；降级时兜住最新消息）
+
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"

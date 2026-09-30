@@ -68,6 +68,7 @@ class StubLibAdapter:
     def __init__(self) -> None:
         self.renew_calls = 0
         self.renew_ok = True
+        self.renew_args: tuple | None = None  # (student_id, barcodes, idempotency_key)
 
     async def fetch_loans(self, student_id, include_history=False):
         return AdapterResponse(
@@ -77,6 +78,7 @@ class StubLibAdapter:
 
     async def renew(self, student_id, barcodes, idempotency_key):
         self.renew_calls += 1
+        self.renew_args = (student_id, list(barcodes), idempotency_key)
         from app.schemas.library import LibraryRenewItem
 
         if self.renew_ok:

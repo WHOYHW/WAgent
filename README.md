@@ -84,9 +84,12 @@ pip install -r requirements.txt
 
 - [x] 设计文档集：行业总览、业务域流程拆解、阶段一完整设计、边界矩阵、技术架构、风控评测、技术选型
 - [x] 后端骨架：配置 / 缓存 / 存储 / 安全 / 适配器 / `timetable_query` 工具
-- [ ] 后端工具补全：`grade_query`、`borrow_query`、续借写操作
+- [x] 后端工具补全：`grade_query`、`borrow_query`、续借写操作（[`backend/app/tools/`](./backend/app/tools/) 6 工具齐备）
+- [x] 会话存储层：`SessionStore` + `conversation_session` / `message` 两张表 + 历史压缩（任务设计文档 [`docs/项目文档/01-会话存储层设计.md`](./docs/项目文档/01-会话存储层设计.md)）
 - [ ] 提醒引擎（调度、静默期、去重聚合、日频上限、降级链）
 - [ ] 编排层与 SSE 流式对话接口
+  - [x] 编排核心 `Orchestrator`：对话循环（会话准备/红线拦截/历史压缩/工具路由/迭代熔断/写门禁）+ 事件流与 `LLMClient` 协议（任务设计文档 [`docs/项目文档/03-编排核心Orchestrator设计.md`](./docs/项目文档/03-编排核心Orchestrator设计.md)）
+  - [ ] LLM 适配器（子任务 3）与 SSE 端点（子任务 4）
 - [ ] 评测黄金集与端到端联调
 
 ---
