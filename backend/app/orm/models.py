@@ -1,3 +1,4 @@
+
 """C3 数据模型：4 张 PostgreSQL 表 + 索引/约束（文档 12 §4 + 规范 §3.3）。
 
 JSONB 字段（``trigger_config`` / ``intent_history`` / ``hit_rules`` /
@@ -109,3 +110,61 @@ class AuditLog(IdMixin, Base):
     result: Mapped[str | None] = mapped_column(String(16), nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channel: Mapped[str | None] = mapped_column(String(24), nullable=True)
+
+
+class ConversationSession(IdMixin, Base):
+    """会话（短期记忆载体；阶段一上限 30 分钟 TTL，文档 12 §4 + 任务设计 W1.1）。
+
+    ``session_id`` 由应用层生成 ``sess_<16hex>``；``student_id`` 与 ``handoff_ticket`` /
+    ``audit_log`` 字段一致（VARCHAR(20)）；``status`` 形如 ``active / expired / closed``。
+    """
+
+    __tablename__ = "conversation_session"
+    __table_args__ = (
+        Index("idx_session_student_status", "student_id", "status"),
+        Index("idx_session_expires", "expires_at"),
+    )
+
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    student_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(24), nullable=False, default="wecom")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    summary_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TimestampTZ, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TimestampTZ, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(TimestampTZ, nullable=False)
+
+
+class Message(IdMixin, Base):
+    """单条消息（user / assistant / tool / system；任务设计 W1.1）。
+
+    - ``seq`` 会话内单调递增，由应用层 ``MAX(seq)+1`` 分配；
+    - 唯一约束 ``(session_id, seq)`` 兜底并发冲突；
+    - ``tool_calls`` 用 JSONB 直接存 OpenAI Function Calling 的 tool_calls 数组；
+    - ``deleted_at`` 软删：压缩时被覆盖的历史消息仅打点，不物理删除（满足 ≥180 天留存）；
+    - ``is_summary=True`` 标识该条是压缩产生的 system 摘要，编排层据此区分。
+    """
+
+    __tablename__ = "message"
+    __table_args__ = (
+        Index("idx_msg_session_seq", "session_id", "seq"),
+        Index("idx_msg_session_role", "session_id", "role"),
+        UniqueConstraint("session_id", "seq", name="uq_msg_session_seq"),
+    )
+
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONBType, nullable=True)
+    tool_call_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    trace_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    is_summary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TimestampTZ, nullable=False, server_default=func.now()
+    )

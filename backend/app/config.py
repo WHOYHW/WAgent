@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # ---- 数据时效说明 ----
     grade_cache_ttl: int = 0                    # 成绩明细不缓存（红线 R3）
 
+    # ---- 会话（C2 编排层 · 任务设计 W1.6）----
+    session_ttl_seconds: int = 1800             # 会话过期时间（30 min，每次追加自动续期）
+    session_history_limit: int = 20             # 加载历史的默认条数（超过即触发压缩）
+    session_compress_tail: int = 6              # 压缩时保留最近 N 条（安全阀：≥4）
+
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"

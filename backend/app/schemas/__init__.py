@@ -34,6 +34,13 @@ from .handoff import (
     HandoffPriority,
     HandoffTicketOut,
 )
+from .conversation import (
+    CompressedSummary,
+    Conversation,
+    Message,
+    MessageIn,
+    Role,
+)
 
 __all__ = [
     # meta / degrade
@@ -73,4 +80,10 @@ __all__ = [
     "HandoffCreateParams",
     "HandoffPriority",
     "HandoffTicketOut",
+    # conversation（任务设计 W1.3）
+    "CompressedSummary",
+    "Conversation",
+    "Message",
+    "MessageIn",
+    "Role",
 ]
