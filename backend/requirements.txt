@@ -1,13 +1,29 @@
 # WAgent 后端依赖（环境：Anaconda env WAgent / Python 3.13+）
 # 运行：pip install -r requirements.txt
 # 测试：pip install -r requirements.txt -r requirements-dev.txt
+# 本文件是后端依赖的唯一事实源；根目录 requirements.txt 仅作伞形引用。
 
+# ---- Web 框架与数据契约（C1/C2）----
 fastapi>=0.141
 uvicorn>=0.53
 pydantic>=2.13
 pydantic-settings>=2.15
+
+# ---- 存储与迁移（C3）----
 sqlalchemy[asyncio]>=2.0.54
-aiosqlite>=0.22
+aiosqlite>=0.22        # 开发/测试默认 SQLite 异步驱动
+asyncpg>=0.31          # 生产 PG 异步驱动（backend/.env 的 DB_URL 用 asyncpg 方言）
 alembic>=1.20
+
+# ---- HTTP 客户端与缓存（C4/C5）----
 httpx>=0.28
 redis>=8.1
+
+# ---- 适配器重试与降级模板（C4）----
+tenacity>=9.1          # adapters/base.py 指数退避重试
+pyyaml>=6.0            # templates/degrade.yaml 降级文案模板
+
+# ---- 身份、日志与 LLM（C2）----
+pyjwt>=2.14            # security.py 会话令牌（student_id 注入）
+structlog>=26.1        # logging_util.py 结构化脱敏日志
+openai>=3.0            # LLM 适配器（子任务 3）：AsyncOpenAI 接火山方舟
