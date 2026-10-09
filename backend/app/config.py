@@ -40,9 +40,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
-    # ---- LLM（C2 Function Calling）----
+    # ---- LLM（C2 Function Calling · 子任务 3 适配器消费）----
     llm_api_base: str | None = None
     llm_api_key: str | None = None
+    llm_model: str | None = None          # 模型名 / 方舟推理接入点 ID
+    # 豆包 seed 系列为思考模型：thinking 计费且推高首字延迟，校园问答默认关；
+    # 传输层始终剥离 reasoning_content（纵深防御，见 llm/adapter.py）
+    llm_thinking_enabled: bool = False
+    # usage 尾块（空 choices）计量：方舟兼容性待联调验证，默认关
+    llm_stream_include_usage: bool = False
 
     # ---- 源系统适配器（C4）----
     edu_api_base_url: str | None = None
