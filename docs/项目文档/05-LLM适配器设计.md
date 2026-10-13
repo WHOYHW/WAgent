@@ -378,4 +378,4 @@ thinking + connect 单独收紧 5s + 超时走环境变量免发版可调。
 ← 上一篇：[子任务 2：编排核心 Orchestrator](./03-编排核心Orchestrator设计.md)
 下一篇：[06-LLM适配器学习指南](./06-LLM适配器学习指南.md)
 
-*文档版本 v1.1（thinking 三态化） ｜ 阶段一编排层子任务 3 ｜ 下一步动作：子任务 4（SSE 端点）按本文 §2.4 异常模型与 03 §2.3 事件协议并行开发*
+*文档版本 v1.1（thinking 三态化） ｜ 阶段一编排层子任务 3 ｜ 后续：子任务 4 已收口（[`07-SSE端点设计.md`](./07-SSE端点设计.md)），`is_configured` 自检与 `aclose()` 均已被 lifespan 接线消费*

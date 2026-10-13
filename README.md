@@ -90,7 +90,7 @@ pip install -r requirements.txt
 - [ ] 编排层与 SSE 流式对话接口
   - [x] 编排核心 `Orchestrator`：对话循环（会话准备/红线拦截/历史压缩/工具路由/迭代熔断/写门禁）+ 事件流与 `LLMClient` 协议（任务设计文档 [`docs/项目文档/03-编排核心Orchestrator设计.md`](./docs/项目文档/03-编排核心Orchestrator设计.md)）
   - [x] LLM 适配器 `ArkLLMClient`：火山方舟（豆包）OpenAI 兼容流式接入、tool_calls 分片聚合、thinking 三态可配（默认不发厂商私有参数，任何兼容端点零改动切换）、`--live` 真机联调（任务设计文档 [`docs/项目文档/05-LLM适配器设计.md`](./docs/项目文档/05-LLM适配器设计.md)）
-  - [ ] SSE 端点（子任务 4）
+  - [x] SSE 端点 `POST /agent/chat`：六类事件 → SSE 帧流式对话接口、依赖注入装配（`get_llm`/`get_orchestrator`）、断线清理、配置门控 CORS、首个 API 级测试基建（httpx ASGITransport），真机联调打字机效果确认（任务设计文档 [`docs/项目文档/07-SSE端点设计.md`](./docs/项目文档/07-SSE端点设计.md)）
 - [ ] 评测黄金集与端到端联调
 
 ---

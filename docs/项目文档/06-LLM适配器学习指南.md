@@ -205,10 +205,11 @@ A：根目录那份是设计期快照，backend 那份才是真实运行清单�
 
 ## 九、下一步
 
-- **子任务 4（SSE 端点）**：把六类 `Event` 映射为 SSE 帧；在 lifespan
-  挂 `ArkLLMClient` 单例与 `aclose()`；startup 用 `is_configured` 打
-  warning。事件协议（03 §2.3）与异常模型（05 §2.4）都已冻结，可直接
-  开工。
+- **子任务 4（SSE 端点）已交付**：六类 `Event` → SSE 帧、lifespan 挂
+  `ArkLLMClient` 单例与 `aclose()`、startup `is_configured` warning——
+  本文预告的三个接线点全部兑现，见
+  [`07-SSE端点设计.md`](./07-SSE端点设计.md) 与
+  [`08-SSE端点学习指南.md`](./08-SSE端点学习指南.md)。
 - **prompt 内容工程**：注入当前日期（修复"明天"幻觉）；话术模板库。
 - **阶段二**：usage 计量入库（开关已留）、语义红线通道。
 
