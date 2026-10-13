@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
+    # ---- Web 层（C2 · 子任务 4 SSE 端点）----
+    # 逗号分隔的前端源；空 = 不挂 CORS 中间件，生产行为不变。
+    # 开发态接前端时在 .env 配置（如 http://localhost:5173）。
+    cors_allow_origins: str = ""
+
     # ---- LLM（C2 Function Calling · 子任务 3 适配器消费）----
     llm_api_base: str | None = None
     llm_api_key: str | None = None
