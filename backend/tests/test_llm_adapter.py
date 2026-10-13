@@ -322,14 +322,23 @@ async def test_not_configured_lazy_raise():
 
 async def test_request_kwargs():
     fake = FakeOpenAI([[ns_chunk("好", finish="stop")]])
-    adapter = make_adapter(fake)
+    # 显式 None 压掉本地 .env 的可能配置，测"代码默认"
+    adapter = make_adapter(fake, llm_thinking_enabled=None)
     await drive(adapter, MSG, TOOLS)
     kwargs = fake.chat.completions.calls[0]
     assert kwargs["model"] == "doubao-test"
     assert kwargs["stream"] is True
-    assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}  # 默认关思考
+    assert "extra_body" not in kwargs  # 默认不发厂商私有参数（任何端点安全）
     assert kwargs["tools"] == TOOLS
     assert "stream_options" not in kwargs  # include_usage 默认关
+
+    # 显式 False → 发 disabled（保持 v1.0 的方舟关思考语义）
+    fake2 = FakeOpenAI([[ns_chunk("好", finish="stop")]])
+    await drive(make_adapter(fake2, llm_thinking_enabled=False), MSG)
+    assert (
+        fake2.chat.completions.calls[0]["extra_body"]
+        == {"thinking": {"type": "disabled"}}
+    )
 
     # tools=None → 不带该键（空表对 Ark 行为未验证）
     fake2 = FakeOpenAI([[ns_chunk("好", finish="stop")]])

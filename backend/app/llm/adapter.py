@@ -1,35 +1,3 @@
-"""LLM 适配器（M2 子任务 3）：OpenAI 兼容流式响应 → ``LLMClient`` Protocol。
-
-接火山方舟（豆包系列，``https://ark.cn-beijing.volces.com/api/v3``），
-协议与实现契约见 ``docs/项目文档/05-LLM适配器设计.md``。本模块只做
-"厂商流式分片 → ``LLMChunk`` 块序列"的翻译，不包含任何编排语义——
-重试/兜底/降级全部由编排层（F3/F6）统一决定（设计原则 P2 依赖倒置）。
-
-设计要点：
-- **delta 透传**：``choices[0].delta.content`` 逐块 yield；``None``/空串跳过
-  （心跳包 / role-only 首块）。
-- **tool_calls 分片聚合**：OpenAI 流式协议中工具调用按 ``index`` 分片到达
-  （首片带 id/name，后续片只有 arguments 增量），本模块按 index 分桶拼接，
-  流结束 yield **恰好一个**聚合末块——履行冻结协议"tool_calls 只出现在
-  最后一个块"的约定。
-- **reasoning 双保险**：豆包 seed 系列为思考模型，默认经 ``extra_body``
-  服务端关 thinking（计费且推高首字延迟）；传输层对
-  ``delta.reasoning_content`` 有意不读取不透传（思考过程对用户不可见，R3），
-  留作参数失效/换模型时的纵深防御。
-- **不做自动重试**：SDK ``max_retries=0``——已 yield 的 token 无法回滚，
-  重试会造成重复输出；失败统一包装 :class:`LLMStreamError` 抛出，由编排层
-  F6（首请求失败 → ``llm_unavailable``）或 F3（摘要失败 → 降级）兜底。
-- **懒校验**：构造零副作用；配置缺失在首次 ``stream()`` 时抛
-  :class:`LLMNotConfiguredError`（镜像 ``adapters.base`` 的
-  ``SourceNotConfiguredError`` 语义）——LLM 未配置时应用仍可启动，
-  红线拦截（F2）等 LLM 零参与路径不受影响（P5）。
-
-异常映射链（设计文档 §F5）：
-``LLMStreamError`` → 编排层首请求失败时置 ``LLMStreamFailure`` →
-``error(llm_unavailable)`` 终态。编排层与子任务 4 不 import ``openai``
-的任何异常类型（P2 闭环）。
-"""
-
 from __future__ import annotations
 
 import time
@@ -108,13 +76,18 @@ class ArkLLMClient:
             "model": model,
             "messages": messages,
             "stream": True,
-            # 豆包思考模型开关（方舟非标准参数，经 extra_body 透传）
-            "extra_body": {
-                "thinking": {
-                    "type": "enabled" if self.settings.llm_thinking_enabled else "disabled"
-                }
-            },
         }
+        # 豆包思考模型开关（方舟非标准参数，经 extra_body 透传）。三态：
+        # None=不发该参数（代码默认，任何 OpenAI 兼容端点安全——严格端点
+        # 对未知参数返回 400）；True/False=显式开/关（方舟用户 .env 配置）
+        if self.settings.llm_thinking_enabled is not None:
+            kwargs["extra_body"] = {
+                "thinking": {
+                    "type": (
+                        "enabled" if self.settings.llm_thinking_enabled else "disabled"
+                    )
+                }
+            }
         if tools:
             kwargs["tools"] = tools  # 空表/None 都不带（方舟对 [] 的行为未验证）
         if self.settings.llm_stream_include_usage:

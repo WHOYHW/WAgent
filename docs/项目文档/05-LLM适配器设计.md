@@ -10,6 +10,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-10-09 | 初版。实现火山方舟（豆包）OpenAI 兼容流式适配器；含 `--live` 联调实测数据（§4.3）与两条联调发现（§6.3 遗留项） |
+| v1.1 | 2026-10-13 | thinking 参数三态化：`None`=不发该参数（代码默认，厂商中立）/ `True`/`False`=显式开/关；方舟既有行为经 `.env` 的 `LLM_THINKING_ENABLED=false` 保持。消除换用严格 OpenAI 端点时未知参数 400 的风险（§F4、§3.8） |
 
 ---
 
@@ -156,9 +157,11 @@ OpenAI 流式协议中工具调用按 `index` 分片到达：首片带 `id`/`nam
 
 ### F4 reasoning 剥离与 thinking 开关（双保险）
 
-- **服务端**：`extra_body={"thinking": {"type": "disabled"}}` 默认关——
-  豆包 seed 是思考模型，thinking 计费且推高 TTFT，校园 6 工具问答不需要；
-  `llm_thinking_enabled=True` 可开（联调验证项，非默认路径）；
+- **服务端**（v1.1 三态）：`llm_thinking_enabled=None`（代码默认）**不发**
+  该参数——任何 OpenAI 兼容端点安全（严格端点如 OpenAI 官方对未知参数
+  返回 400）；`True`/`False` 显式开/关（方舟用户在 `.env` 配
+  `LLM_THINKING_ENABLED=false`——seed 系列服务端默认可能开思考，关掉省
+  计费、降 TTFT）；
 - **传输层**：`delta.reasoning_content` 有意不读取不透传——参数失效或
   换模型时的纵深防御。
 
@@ -196,7 +199,7 @@ class ArkLLMClient:
 | 配置 | 默认 | 说明 |
 |---|---|---|
 | `llm_model` | `None` | 模型名 / 方舟推理接入点 ID |
-| `llm_thinking_enabled` | `False` | 豆包思考模型开关（默认关：计费 + TTFT） |
+| `llm_thinking_enabled` | `None` | 三态：None=不发参数（任何端点安全，v1.1 默认）；True/False=显式开/关 |
 | `llm_stream_include_usage` | `False` | usage 尾块计量（方舟兼容性待验证，默认关） |
 
 复用既有：`llm_api_base` / `llm_api_key`（config.py 原有）、
@@ -375,4 +378,4 @@ thinking + connect 单独收紧 5s + 超时走环境变量免发版可调。
 ← 上一篇：[子任务 2：编排核心 Orchestrator](./03-编排核心Orchestrator设计.md)
 下一篇：[06-LLM适配器学习指南](./06-LLM适配器学习指南.md)
 
-*文档版本 v1.0 ｜ 阶段一编排层子任务 3 ｜ 下一步动作：子任务 4（SSE 端点）按本文 §2.4 异常模型与 03 §2.3 事件协议并行开发*
+*文档版本 v1.1（thinking 三态化） ｜ 阶段一编排层子任务 3 ｜ 下一步动作：子任务 4（SSE 端点）按本文 §2.4 异常模型与 03 §2.3 事件协议并行开发*

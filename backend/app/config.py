@@ -44,9 +44,12 @@ class Settings(BaseSettings):
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None          # 模型名 / 方舟推理接入点 ID
-    # 豆包 seed 系列为思考模型：thinking 计费且推高首字延迟，校园问答默认关；
+    # 豆包 seed 系列为思考模型：thinking 计费且推高首字延迟。三态：
+    # None=不发该参数（代码默认，任何 OpenAI 兼容端点安全，严格端点对未知
+    # 参数返回 400）；True/False=显式开/关。方舟 seed 用户建议 .env 配
+    # LLM_THINKING_ENABLED=false（服务端默认可能开思考）。
     # 传输层始终剥离 reasoning_content（纵深防御，见 llm/adapter.py）
-    llm_thinking_enabled: bool = False
+    llm_thinking_enabled: bool | None = None
     # usage 尾块（空 choices）计量：方舟兼容性待联调验证，默认关
     llm_stream_include_usage: bool = False
 

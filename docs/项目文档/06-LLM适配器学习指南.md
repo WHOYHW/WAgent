@@ -102,7 +102,9 @@ SDK 默认会静默重试 2 次。问题：**已经 yield 出去的 token 收不
 ### 4.5 思考模型的双保险
 
 豆包 seed 是思考模型：`reasoning_content` 会先于 `content` 流出。两层
-防御：① `extra_body` 服务端关 thinking（省 token 钱、降 TTFT）；
+防御：① `extra_body` 的 thinking **三态**——`None`（代码默认）不发参数，
+任何 OpenAI 兼容端点安全；`False` 方舟显式关（省 token 钱、降 TTFT，
+方舟用户在 `.env` 配 `LLM_THINKING_ENABLED=false`）；
 ② 传输层**有意不读取** `reasoning_content`（`getattr` 都不做）——万一
 参数失效或换了不认这个参数的模型，思考文本也不会漏给用户。
 
