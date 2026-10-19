@@ -325,9 +325,11 @@ thinking + connect 单独收紧 5s + 超时走环境变量免发版可调。
 
 **遗留项（联调发现，非本任务范围）**：
 
-1. **模型无日期感知**：实测中模型把"明天"解析为 2025-11-28（其训练
-   截止附近的日期感）——system prompt 未注入当前日期。留给 prompt
-   内容工程（3/4 持续项）：在 system prompt 或首条消息注入今日日期。
+1. ~~**模型无日期感知**~~ ✅ 已解决（2026-10-19）：实测中模型把"明天"
+   解析为 2025-11-28（其训练截止附近的日期感）——system prompt 未注入
+   当前日期。修复：编排层 `_build_llm_messages` 每轮在 system prompt
+   尾部动态拼入 `date.today()`（ISO 日期 + 星期 + 相对日期换算指示），
+   测试断言见 `test_orchestrator.py::test_normal_one_tool_call_event_sequence`。
 2. TTFT 6.38s 偏高（网络 + 首轮工具决策），SSE 端点上线后需在真实
    并发下复测。
 

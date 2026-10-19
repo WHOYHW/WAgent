@@ -148,6 +148,8 @@ async def test_normal_one_tool_call_event_sequence(db):
     # LLM 协议：首轮带 tools，次轮收到配对的 assistant(tool_calls) + tool 消息
     assert llm.calls[0]["tools"] is not None
     assert llm.calls[0]["messages"][0]["role"] == "system"
+    # 05 §6.3 遗留项①：system prompt 每轮注入当前日期（相对日期查询的锚点）
+    assert date.today().isoformat() in llm.calls[0]["messages"][0]["content"]
     assert llm.calls[0]["messages"][-1]["role"] == "user"
     second = llm.calls[1]["messages"]
     assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"]

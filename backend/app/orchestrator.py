@@ -105,6 +105,9 @@ DEFAULT_SYSTEM_PROMPT = """你是湖南理工大学的校园助手，为学生�
 7. 身份信息（student_id）由系统自动注入，你不需要也无法填写。
 8. 续借是唯一需要用户确认的操作：必须先查询在借清单，向用户完整展示将续借的图书条码与到期日变化，明确请用户回复"确认续借"；收到确认后再次调用续借工具，两次调用的图书条码必须完全一致。确认状态由系统核验，不要试图代替用户确认。"""
 
+# 星期中文映射（05 §6.3 遗留项①：当前日期注入的换算辅助）
+_WEEKDAY_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
 # 规则 → 优先级 / 归属映射（11 §4.2 SLA 表，设计文档 F2）
 REDLINE_PRIORITY: dict[str, HandoffPriority] = {
     "R5_生命优先": HandoffPriority.P0,
@@ -822,8 +825,20 @@ class Orchestrator:
         return {"role": m.role, "content": m.content}
 
     def _build_llm_messages(self, history: list[Message]) -> list[dict]:
-        """上下文组装：system prompt 永远第一，摘要紧随其后，其余按 seq 原序。"""
-        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        """上下文组装：system prompt 永远第一，摘要紧随其后，其余按 seq 原序。
+
+        system prompt 尾部每轮动态拼入当前日期（05 §6.3 遗留项①）：模型
+        无时钟感，缺日期时"明天"会落到训练截止附近——相对日期类查询
+        全错是正确性问题而非幻觉，必须由编排层在组装时注入。
+        """
+        today = date.today()
+        date_line = (
+            f"当前日期：{today.isoformat()}（{_WEEKDAY_CN[today.weekday()]}）。"
+            "用户提到的相对日期（今天/明天/下周等）一律以此为准换算。"
+        )
+        messages: list[dict] = [
+            {"role": "system", "content": f"{self.system_prompt}\n\n{date_line}"}
+        ]
         for m in history:
             if m.is_summary:
                 messages.append({"role": "system", "content": m.content})
