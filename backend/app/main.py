@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .adapters import EduAdapter, LibAdapter
+from .adapters.push import build_push_adapter
 from .cache import make_cache
 from .config import settings
 from .conversation import SessionStore
@@ -66,6 +67,10 @@ _shared_renew_counts: dict[str, int] = {}
 # LLM 客户端：进程级单例（SDK 连接池复用），lifespan shutdown 统一 aclose。
 _llm_client = ArkLLMClient()
 
+# 推送通道：进程级单例（R2 工厂门控：配置了企微 webhook → 真实通道，否则开发桩）。
+# 构造零副作用（客户端懒创建），R3 提醒引擎心跳消费，shutdown 统一 aclose。
+_push_adapter = build_push_adapter()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -78,11 +83,18 @@ async def lifespan(app: FastAPI):
             "llm_not_configured",
             hint="缺少 LLM_API_BASE/LLM_API_KEY/LLM_MODEL，仅确定性路径可用",
         )
+    if not settings.push_wecom_webhook_url:
+        # 镜像 llm_not_configured：未配置走开发桩（degraded 回执），不阻止启动。
+        logger.warning(
+            "push_not_configured",
+            hint="PUSH_WECOM_WEBHOOK_URL 未配置，推送走开发桩（degraded 回执，不冒充真实触达）",
+        )
     yield
     # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
     await _shared_services.edu.aclose()
     await _shared_services.lib.aclose()
     await _llm_client.aclose()
+    await _push_adapter.aclose()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)

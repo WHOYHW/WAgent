@@ -62,7 +62,11 @@ class ReminderDispatch(IdMixin, Base):
     dedup_key: Mapped[str] = mapped_column(String(128), nullable=False)  # hash(subject+trigger+date)
     dedup_date: Mapped[date] = mapped_column(nullable=False)
     channel: Mapped[str] = mapped_column(String(24), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False)  # sent/failed/degraded/skipped_quiet
+    # sent / claimed（占坑中，09 D3）/ failed / degraded / skipped_quiet / skipped_quota
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 当前认领时刻（09 D3 CAS 认领自愈的时间锚，续发置换时刷新——
+    # 不可变锚会让下一实例立刻重复认领同一孤儿行，留双发窗口）
+    claimed_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
     pushed_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
     opened_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
     action_taken: Mapped[str | None] = mapped_column(String(32), nullable=True)  # viewed/renewed/returned

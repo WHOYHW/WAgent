@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     lib_sip2_host: str | None = None
     lib_sip2_port: int = 6001
 
+    # ---- 推送通道（R2，任务设计 09 §2.5）----
+    push_wecom_webhook_url: str | None = None  # 企微群机器人 webhook；未配置 → 开发桩
+    push_timeout_seconds: float = 10.0         # 推送单次超时（与源系统 2s 语义不同）
+
     # ---- TTL 阈值（C5 §3.5.2 R5.2，单位：秒）----
     ttl_timetable: int = 900        # 课表正常 15min
     ttl_timetable_peak: int = 300   # 调停课高发期 5min

@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .meta import STUDENT_ID_DESC, ToolMeta
 
@@ -59,11 +60,47 @@ class TriggerConditions(BaseModel):
     event: EventCondition | None = None
 
 
+# ---------------------------------------------------------------------------
+# 时机词表契约（09 §2.3）：入库校验与候选生成同源。
+# 词表属契约层——候选生成（reminder/candidates.py）反向引用本模块，
+# 禁止反向依赖，避免循环 import。
+# ---------------------------------------------------------------------------
+
+#: ``T-<N><unit>``，unit ∈ {d, h, min}
+TIMING_RE = re.compile(r"^T-(\d+)(d|h|min)$")
+_TIMING_UNITS = {"d": "days", "h": "hours", "min": "minutes"}
+
+
+class TimingFormatError(ValueError):
+    """时机串违反契约词表 ``T-<N><unit>``——脏参数在入库前被拒（R3.3 结构定型）。"""
+
+
+def parse_timing(timing: str) -> timedelta:
+    """``T-<N><unit>`` → 时长。unit ∈ {d, h, min}；非法输入显式报错。"""
+    m = TIMING_RE.match(timing.strip())
+    if m is None:
+        raise TimingFormatError(f"非法时机串：{timing!r}（期望 T-3d / T-2h / T-30min）")
+    n, unit = int(m.group(1)), _TIMING_UNITS[m.group(2)]
+    return timedelta(**{unit: n})
+
+
 class TriggerConfig(BaseModel):
     """订阅触发配置的 JSONB 结构（§3.3.2 R3.3，定型后 model_dump 入库）。"""
 
-    timing: list[str] = Field(default_factory=list, description='提前量，如 ["T-3d","T-1d"]')
+    timing: list[str] = Field(
+        default_factory=list,
+        description='提前量，须匹配 T-<N><unit>（unit ∈ d/h/min），如 ["T-3d","T-1d"]',
+    )
     conditions: TriggerConditions = Field(default_factory=TriggerConditions)
+
+    @field_validator("timing")
+    @classmethod
+    def _timing_in_vocabulary(cls, v: list[str]) -> list[str]:
+        # timing 是 LLM 生成的工具参数，直接落库——脏值（如 "3天前"）若入库，
+        # 每个 tick 的扫描都会毒化（09 风险③入库侧防线）。
+        for t in v:
+            parse_timing(t)
+        return v
 
 
 class ReminderSubscribeParams(BaseModel):

@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import select
+from pydantic import ValidationError
 
 from app.orm import AuditLog, HandoffTicket, ReminderSubscription
 from app.schemas import (
@@ -145,3 +146,14 @@ async def test_reminder_subscribe_upsert(db):
     assert second.meta.degrade_status == DegradeStatus.LIVE_OK
     rows = (await db.execute(select(ReminderSubscription))).scalars().all()
     assert len(rows) == 1
+
+
+async def test_reminder_subscribe_rejects_dirty_timing(db):
+    # LLM 编出的脏 timing 在契约层被拒（TriggerConfig validator），不落库——
+    # 否则每个 tick 毒化整个扫描（09 风险③入库侧防线）
+    reg = build_registry(make_services(db=db))
+    with pytest.raises(ValidationError):
+        await reg.dispatch("reminder_subscribe", _ctx(db), ReminderSubscribeParams(
+            student_id="20230001", subject=ReminderSubject.LIBRARY_DUE,
+            timing=["3天前"]))
+    assert (await db.execute(select(ReminderSubscription))).scalars().all() == []

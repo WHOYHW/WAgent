@@ -25,8 +25,10 @@ from .reminder import (
     ReminderSubscribeResult,
     ReminderTriggerType,
     ThresholdCondition,
+    TimingFormatError,
     TriggerConditions,
     TriggerConfig,
+    parse_timing,
 )
 from .handoff import (
     FactSummary,
@@ -75,6 +77,8 @@ __all__ = [
     "EventCondition",
     "TriggerConditions",
     "TriggerConfig",
+    "TimingFormatError",
+    "parse_timing",
     # handoff
     "FactSummary",
     "HandoffCreateParams",
