@@ -87,6 +87,9 @@ pip install -r requirements.txt
 - [x] 后端工具补全：`grade_query`、`borrow_query`、续借写操作（[`backend/app/tools/`](./backend/app/tools/) 6 工具齐备）
 - [x] 会话存储层：`SessionStore` + `conversation_session` / `message` 两张表 + 历史压缩（任务设计文档 [`docs/项目文档/01-会话存储层设计.md`](./docs/项目文档/01-会话存储层设计.md)）
 - [ ] 提醒引擎（调度、静默期、去重聚合、日频上限、降级链）
+  - [x] 总体设计与三决策点裁决：D1 进程内 asyncio 心跳（否决 APScheduler）/ D2 静默期跳过标 skipped_quiet（`:quiet` 命名空间，次晨窗口自然重放）/ D3 唯一约束 claim-first + CAS 认领（否决分布式锁）（任务设计文档 [`docs/项目文档/09-提醒引擎设计.md`](./docs/项目文档/09-提醒引擎设计.md)）
+  - [x] R1 到期生成（纯函数）：`(订阅, 数据源快照, now) → 候选`——明天课表（节次锚定）+ 借阅 N 天内到期（按日聚合）、dedup_key 规则（判别位 + `:quiet` 命名空间）、日频计数；零 IO/零调度/零推送，30 项单测（[candidates.py](./backend/app/reminder/candidates.py)｜[test_reminder_candidates.py](./backend/tests/test_reminder_candidates.py)）
+  - [x] R2 推送通道适配器：`PushAdapter` Protocol（send → `PushReceipt` 回执）+ 开发桩（degraded 回执，不冒充真实触达）/ 企微 webhook（errcode 语义）+ 配置门控工厂；完全对齐 edu/lib 模式（DI、`PushNotConfiguredError` 惰性校验、aclose 幂等），写路径不重试，降级回执直接映射 `dispatch.status`；15 项单测全桩零网络（[push.py](./backend/app/adapters/push.py)｜[test_push_adapter.py](./backend/tests/test_push_adapter.py)）
 - [ ] 编排层与 SSE 流式对话接口
   - [x] 编排核心 `Orchestrator`：对话循环（会话准备/红线拦截/历史压缩/工具路由/迭代熔断/写门禁）+ 事件流与 `LLMClient` 协议（任务设计文档 [`docs/项目文档/03-编排核心Orchestrator设计.md`](./docs/项目文档/03-编排核心Orchestrator设计.md)）
   - [x] LLM 适配器 `ArkLLMClient`：火山方舟（豆包）OpenAI 兼容流式接入、tool_calls 分片聚合、thinking 三态可配（默认不发厂商私有参数，任何兼容端点零改动切换）、`--live` 真机联调（任务设计文档 [`docs/项目文档/05-LLM适配器设计.md`](./docs/项目文档/05-LLM适配器设计.md)）
