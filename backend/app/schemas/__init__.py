@@ -6,9 +6,20 @@ JSON Schema 通过 ``model_json_schema()`` 导出，禁止手写 JSON Schema 字
 本包按「契约类型 × 业务域」组织，并统一导出顶层符号，供工具层 / 适配层 / 编排层引用。
 """
 
-from .meta import AdapterResponse, DegradeStatus, STUDENT_ID_DESC, ToolMeta, ToolSource
-from .timetable import TimetableItem, TimetableQueryParams, TimetableResult
+from .conversation import (
+    CompressedSummary,
+    Conversation,
+    Message,
+    MessageIn,
+    Role,
+)
 from .grade import GradeAggregate, GradeItem, GradeQueryParams, GradeResult
+from .handoff import (
+    FactSummary,
+    HandoffCreateParams,
+    HandoffPriority,
+    HandoffTicketOut,
+)
 from .library import (
     LibraryLoanItem,
     LibraryLoansParams,
@@ -17,9 +28,12 @@ from .library import (
     LibraryRenewParams,
     LibraryRenewResult,
 )
+from .meta import STUDENT_ID_DESC, AdapterResponse, DegradeStatus, ToolMeta, ToolSource
 from .reminder import (
     EventCondition,
     ReminderChannel,
+    ReminderFeedbackAction,
+    ReminderFeedbackParams,
     ReminderSubject,
     ReminderSubscribeParams,
     ReminderSubscribeResult,
@@ -30,19 +44,7 @@ from .reminder import (
     TriggerConfig,
     parse_timing,
 )
-from .handoff import (
-    FactSummary,
-    HandoffCreateParams,
-    HandoffPriority,
-    HandoffTicketOut,
-)
-from .conversation import (
-    CompressedSummary,
-    Conversation,
-    Message,
-    MessageIn,
-    Role,
-)
+from .timetable import TimetableItem, TimetableQueryParams, TimetableResult
 
 __all__ = [
     # meta / degrade
@@ -69,6 +71,8 @@ __all__ = [
     "LibraryRenewResult",
     # reminder
     "ReminderChannel",
+    "ReminderFeedbackAction",
+    "ReminderFeedbackParams",
     "ReminderSubject",
     "ReminderSubscribeParams",
     "ReminderSubscribeResult",

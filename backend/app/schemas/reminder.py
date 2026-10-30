@@ -122,3 +122,32 @@ class ReminderSubscribeResult(BaseModel):
     enabled: bool
     updated_at: datetime
     meta: ToolMeta
+
+
+# ---------------------------------------------------------------------------
+# 效果回流契约（15 §2.1/§2.2，R5）：POST /agent/reminders/feedback
+# ---------------------------------------------------------------------------
+
+
+class ReminderFeedbackAction(str, Enum):
+    """回流行为枚举（单向状态机 none→viewed→renewed/returned，15 §2.2）。
+
+    值对齐 ``orm/models.py`` ``ReminderDispatch.action_taken`` 列注释
+    （viewed/renewed/returned）——契约层与 ORM 词表同源，禁止第二份拼写。
+    """
+
+    VIEWED = "viewed"
+    RENEWED = "renewed"
+    RETURNED = "returned"
+
+
+class ReminderFeedbackParams(BaseModel):
+    """回流上报请求体。
+
+    **不含 ``student_id``**——L4 铁律（12 §7）：身份只来自 JWT 注入，
+    行归属校验（dispatch.student_id ≠ 令牌身份 → 404）在服务层
+    ``apply_feedback`` 执行（15 §D1 裁决）。body 同名字段即使伪造也会被忽略。
+    """
+
+    dispatch_id: int = Field(ge=1, description="目标 reminder_dispatch.id（自增主键）")
+    action: ReminderFeedbackAction

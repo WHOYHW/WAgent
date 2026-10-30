@@ -9,14 +9,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from datetime import date
-from typing import AsyncIterator
+from datetime import UTC, date, datetime
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .adapters import EduAdapter, LibAdapter
@@ -24,22 +25,28 @@ from .adapters.push import build_push_adapter
 from .cache import make_cache
 from .config import settings
 from .conversation import SessionStore
-from .db import get_db, init_db
+from .db import async_session_factory, get_db, init_db
 from .llm.adapter import ArkLLMClient
 from .logging_util import get_logger
+from .orchestrator import Event, LLMClient, Orchestrator
+from .orm import ReminderDispatch
+from .reminder.engine import ReminderEngine
+from .reminder.evaluator import CourseEvaluator, LibraryDueEvaluator
+from .reminder.feedback import apply_feedback
+from .reminder.stats import loss_avoidance_stats
 from .schemas import (
     FactSummary,
+    GradeQueryParams,
     HandoffCreateParams,
     HandoffPriority,
     LibraryLoansParams,
     LibraryRenewParams,
     ReminderChannel,
+    ReminderFeedbackParams,
     ReminderSubject,
     TimetableQueryParams,
-    GradeQueryParams,
 )
-from .security import get_current_student
-from .orchestrator import Event, LLMClient, Orchestrator
+from .security import get_current_student, mask_student_id
 from .tools import (
     PreconditionError,
     Services,
@@ -71,6 +78,20 @@ _llm_client = ArkLLMClient()
 # 构造零副作用（客户端懒创建），R3 提醒引擎心跳消费，shutdown 统一 aclose。
 _push_adapter = build_push_adapter()
 
+# 提醒引擎心跳：进程级单例（R3a 骨架 + R3b 求值器接线，实施设计 10 §四/11 §四）。
+# REMINDER_ENABLED 默认 false → start() 内部 no-op，本地裸起不扫描；
+# 求值器共享进程级适配器单例（缓存/连接池复用），阶段一源调用串行。
+_reminder_evaluators = (
+    LibraryDueEvaluator(lib=_shared_services.lib, settings=settings),
+    CourseEvaluator(edu=_shared_services.edu, settings=settings),
+)
+_reminder_engine = ReminderEngine(
+    async_session_factory,
+    evaluators=_reminder_evaluators,
+    settings=settings,
+    push_adapter=_push_adapter,  # R4b：下发闭环；未配置 webhook → 桩（degraded 回执）
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,12 +110,19 @@ async def lifespan(app: FastAPI):
             "push_not_configured",
             hint="PUSH_WECOM_WEBHOOK_URL 未配置，推送走开发桩（degraded 回执，不冒充真实触达）",
         )
-    yield
-    # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
-    await _shared_services.edu.aclose()
-    await _shared_services.lib.aclose()
-    await _llm_client.aclose()
-    await _push_adapter.aclose()
+    # 心跳启动（R3a 三接线之一）：enabled=false 时内部 no-op。
+    await _reminder_engine.start()
+    try:
+        yield
+    finally:
+        # 先停心跳再关适配器（实施设计 10 §四顺序约定）：
+        # 扫描停止后不再有适配器消费者；finally 保证清理必达。
+        await _reminder_engine.stop()
+        # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
+        await _shared_services.edu.aclose()
+        await _shared_services.lib.aclose()
+        await _llm_client.aclose()
+        await _push_adapter.aclose()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -300,6 +328,79 @@ async def subscribe(
             timing=body.timing, channel=body.channel, enabled=body.enabled,
         ),
     )
+
+
+@app.post("/agent/reminders/scan")
+async def reminder_scan(student_id: str = Depends(get_current_student)):
+    """手动触发一次提醒扫描（R3c 调试面，实施设计 12 §三）。
+
+    - 令牌只锁入口（401），**不限定数据范围**：scan_once 是全局对账，
+      扫所有学生的 enabled 订阅，学生隔离发生在求值器源快照层（11 §2.4）。
+    - 不受 reminder_enabled 门控：联调场景心跳通常关着，本端点是唯一通道。
+    - scan_once 永不抛出（R3a 不变量）——失败以 scan_errors>0 体现在 200 里。
+    """
+    logger.info(
+        "reminder_scan_manual",
+        student=mask_student_id(student_id),
+        reminder_enabled=settings.reminder_enabled,
+    )
+    stats = await _reminder_engine.scan_once()
+    return stats.to_dict()
+
+
+@app.get("/agent/reminders/stats")
+async def reminder_stats(
+    student_id: str = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """效果回流统计调试面（R5.3，实施设计 15 §七；G6/AC-12 可演示入口）。
+
+    - 复用 R3c 先例：令牌只锁入口（401），统计是**全局对账视图**，
+      不按学生过滤（D1 语义同 12 §D2）。
+    - 口径唯一真源在纯函数：SQL 不做语义过滤，全表行交
+      ``loss_avoidance_stats`` 裁决（15 §七）；阶段二可加 since 下推。
+    """
+    logger.info("reminder_stats_view", student=mask_student_id(student_id))
+    rows = (await db.execute(select(ReminderDispatch))).scalars().all()
+    return loss_avoidance_stats(rows)
+
+
+@app.post("/agent/reminders/feedback")
+async def reminder_feedback(
+    body: ReminderFeedbackParams,
+    student_id: str = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """效果回流上报（R5.2，实施设计 15 §2.1/§D1/§D2）。
+
+    - 鉴权：学生 JWT + 行归属校验（D1）——归属错配 404 不泄露存在性；
+      body 无 student_id 字段（L4：身份只来自令牌）。
+    - 容错：重复/乱序/非法回跳/不可回流行一律 200 ``applied=false``
+      （D2：埋点类调用，幂等 no-op 优于 409 错误噪音）；
+      仅「行不存在或不归属」是 404。
+    - opened_at/action_taken 状态机语义见 feedback.py（CAS 单语句）。
+    """
+    result = await apply_feedback(
+        db,
+        dispatch_id=body.dispatch_id,
+        student_id=student_id,
+        action=body.action,
+        now=datetime.now(UTC),
+    )
+    logger.info(
+        "reminder_feedback",
+        student=mask_student_id(student_id),
+        dispatch_id=body.dispatch_id,
+        action=body.action.value,
+        applied=result.applied,
+    )
+    if not result.exists:
+        raise HTTPException(status_code=404, detail="提醒记录不存在")
+    return {
+        "dispatch_id": body.dispatch_id,
+        "applied": result.applied,
+        "action_taken": result.action_taken,
+    }
 
 
 @app.post("/agent/handoff")
