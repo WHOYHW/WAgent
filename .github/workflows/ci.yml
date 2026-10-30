@@ -1,0 +1,27 @@
+# 工程化基线 CI（16 §五）：每次 push/PR 三连——lint → 导入契约 → 测试。
+# 真机联调测试（--live）为显式 opt-in，默认跳过，CI 天然不触网（05/07 惯例）。
+name: ci
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: ruff check .
+      - run: lint-imports
+      - run: pytest
