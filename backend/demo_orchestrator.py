@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.config import Settings
 from app.conversation import SessionStore
 from app.db import make_engine
-from app.orm import Base
 from app.orchestrator import Event, EventType, LLMChunk, Orchestrator, ToolCallRequest
+from app.orm import Base
 from app.tools import build_registry
 from tests.conftest import make_services
 

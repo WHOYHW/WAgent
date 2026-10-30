@@ -86,14 +86,18 @@ pip install -r requirements.txt
 - [x] 后端骨架：配置 / 缓存 / 存储 / 安全 / 适配器 / `timetable_query` 工具
 - [x] 后端工具补全：`grade_query`、`borrow_query`、续借写操作（[`backend/app/tools/`](./backend/app/tools/) 6 工具齐备）
 - [x] 会话存储层：`SessionStore` + `conversation_session` / `message` 两张表 + 历史压缩（任务设计文档 [`docs/项目文档/01-会话存储层设计.md`](./docs/项目文档/01-会话存储层设计.md)）
-- [ ] 提醒引擎（调度、静默期、去重聚合、日频上限、降级链）
+- [x] 提醒引擎（调度、静默期、去重聚合、日频上限、降级链；真实通道重推编排属后续阶段，09 §1.3 已声明阶段一只落表结构与状态机设计，`claimed_at`/`is_degraded`/终态集齐备）
   - [x] 总体设计与三决策点裁决：D1 进程内 asyncio 心跳（否决 APScheduler）/ D2 静默期跳过标 skipped_quiet（`:quiet` 命名空间，次晨窗口自然重放）/ D3 唯一约束 claim-first + CAS 认领（否决分布式锁）（任务设计文档 [`docs/项目文档/09-提醒引擎设计.md`](./docs/项目文档/09-提醒引擎设计.md)）
   - [x] R1 到期生成（纯函数）：`(订阅, 数据源快照, now) → 候选`——明天课表（节次锚定）+ 借阅 N 天内到期（按日聚合）、dedup_key 规则（判别位 + `:quiet` 命名空间）、日频计数；零 IO/零调度/零推送，30 项单测（[candidates.py](./backend/app/reminder/candidates.py)｜[test_reminder_candidates.py](./backend/tests/test_reminder_candidates.py)）
   - [x] R2 推送通道适配器：`PushAdapter` Protocol（send → `PushReceipt` 回执）+ 开发桩（degraded 回执，不冒充真实触达）/ 企微 webhook（errcode 语义）+ 配置门控工厂；完全对齐 edu/lib 模式（DI、`PushNotConfiguredError` 惰性校验、aclose 幂等），写路径不重试，降级回执直接映射 `dispatch.status`；15 项单测全桩零网络（[push.py](./backend/app/adapters/push.py)｜[test_push_adapter.py](./backend/tests/test_push_adapter.py)）
+  - [x] R3 心跳 + 求值 + 调试面：`ReminderEngine`（start/stop 幂等、±10% 抖动、scan_once 两层异常捕获永不抛出）→ 双求值器接线（新鲜度裁决 stale/unavailable 零候选、CAMPUS_TZ 固定 +8、快照日按订阅 timing 最大提前量）→ `POST /agent/reminders/scan` 手动触发（ScanStats 透传）（实施设计 [`docs/项目文档/10-提醒引擎R3a-心跳骨架与接线设计.md`](./docs/项目文档/10-提醒引擎R3a-心跳骨架与接线设计.md)｜[11-求值器接线](./docs/项目文档/11-提醒引擎R3b-求值器接线设计.md)｜[12-手动触发调试面](./docs/项目文档/12-提醒引擎R3c-手动触发调试面设计.md)；[engine.py](./backend/app/reminder/engine.py)｜[evaluator.py](./backend/app/reminder/evaluator.py)）
+  - [x] R4 渲染 + 四闸 + 下发闭环：渲染纯函数（借阅聚合/课程文案，`is_changed` 高亮【调停课】）→ 静默门（`CAMPUS_TZ` 跨午夜，P0 穿透）→ claim（INSERT + SAVEPOINT，IntegrityError 先 CAS 认领自愈再让路）→ 频控（`daily_dispatch_count` 纯函数零第二份逻辑，P0 不计数）→ 聚合（非 P0 合并【提醒汇总】）→ 推送 → 终态单语句回写（实施设计 [`docs/项目文档/13-提醒引擎R4a-渲染纯函数设计.md`](./docs/项目文档/13-提醒引擎R4a-渲染纯函数设计.md)｜[14-四闸全序与下发闭环](./docs/项目文档/14-提醒引擎R4b-四闸全序与下发闭环设计.md)；[render.py](./backend/app/reminder/render.py)｜[gate.py](./backend/app/reminder/gate.py)）
+  - [x] R5 效果回流：契约层（`ReminderFeedbackAction` 单向状态机词表 + 无 `student_id` 请求体，L4）→ `POST /agent/reminders/feedback`（学生 JWT + 行归属校验 404；重复/乱序幂等 no-op + 200，否决 409）→ 统计口径（`loss_avoidance_stats` 纯函数：分母 = sent 且非重发行；`GET /agent/reminders/stats` 调试面，G6/AC-12 可演示）→ 4 组 12 项测试（归属/open 幂等/状态机/口径闭环）（实施设计 [`docs/项目文档/15-提醒引擎R5-效果回流设计.md`](./docs/项目文档/15-提醒引擎R5-效果回流设计.md)；[feedback.py](./backend/app/reminder/feedback.py)｜[stats.py](./backend/app/reminder/stats.py)｜[test_api_reminder_feedback.py](./backend/tests/test_api_reminder_feedback.py)）
 - [ ] 编排层与 SSE 流式对话接口
   - [x] 编排核心 `Orchestrator`：对话循环（会话准备/红线拦截/历史压缩/工具路由/迭代熔断/写门禁）+ 事件流与 `LLMClient` 协议（任务设计文档 [`docs/项目文档/03-编排核心Orchestrator设计.md`](./docs/项目文档/03-编排核心Orchestrator设计.md)）
   - [x] LLM 适配器 `ArkLLMClient`：火山方舟（豆包）OpenAI 兼容流式接入、tool_calls 分片聚合、thinking 三态可配（默认不发厂商私有参数，任何兼容端点零改动切换）、`--live` 真机联调（任务设计文档 [`docs/项目文档/05-LLM适配器设计.md`](./docs/项目文档/05-LLM适配器设计.md)）
   - [x] SSE 端点 `POST /agent/chat`：六类事件 → SSE 帧流式对话接口、依赖注入装配（`get_llm`/`get_orchestrator`）、断线清理、配置门控 CORS、首个 API 级测试基建（httpx ASGITransport），真机联调打字机效果确认（任务设计文档 [`docs/项目文档/07-SSE端点设计.md`](./docs/项目文档/07-SSE端点设计.md)）
+- [x] 工程化基线：lint（ruff，含 TID251 禁用清单）+ 分层导入契约（import-linter 两契约，AC-16b 负向验证通过）+ CI（GitHub Actions）——238 项测试、09 D1 裁决与 12 分层架构由机器强制（任务设计 [`docs/项目文档/16-工程化基线设计.md`](./docs/项目文档/16-工程化基线设计.md)，AC-16a/b 本地达成；AC-16c Actions 首跑 / AC-16d 分支保护待 push 后在仓库设置验证）
 - [ ] 评测黄金集与端到端联调
 
 ---

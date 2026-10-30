@@ -23,9 +23,10 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Iterable, Mapping, Sequence
+from datetime import date, datetime, time, timedelta
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -128,8 +129,11 @@ def _in_due_window(trigger_at: datetime, now: datetime, horizon: timedelta, look
     return (now - lookback) <= trigger_at < (now + horizon)
 
 
-def _sub_timings(sub: Any, subject_value: str) -> tuple[str, ...]:
+def subscription_timings(sub: Any, subject_value: str) -> tuple[str, ...]:
     """订阅的时机序列：trigger_config.timing，缺省回退目录默认（R3.3 经契约模型）。
+
+    公开契约（R3b 起）：求值器用同一来源读订阅 timing（课表快照日规则），
+    与候选生成共享 TriggerConfig 校验路径——禁止第二份实现（R1.1 同源精神）。
 
     库中历史脏数据（validator 上线前入库）在契约模型处显式失败——统一包装为
     :class:`CandidateGenerationError`，供 R3 引擎按订阅隔离异常（09 风险③：
@@ -184,7 +188,7 @@ def due_library_candidates(
     for sub in subs:
         if not sub.enabled or sub.subject != ReminderSubject.LIBRARY_DUE.value:
             continue
-        for timing in _sub_timings(sub, ReminderSubject.LIBRARY_DUE.value):
+        for timing in subscription_timings(sub, ReminderSubject.LIBRARY_DUE.value):
             if not timing.endswith("d"):
                 continue  # 借阅无"事件时刻"，仅支持天粒度锚点（d 单位）
             offset = parse_timing(timing)
@@ -259,7 +263,7 @@ def due_course_candidates(
     for sub in subs:
         if not sub.enabled or sub.subject != ReminderSubject.COURSE.value:
             continue
-        for timing in _sub_timings(sub, ReminderSubject.COURSE.value):
+        for timing in subscription_timings(sub, ReminderSubject.COURSE.value):
             offset = parse_timing(timing)
             for item in items:
                 start_t = section_times.get(item.period_start)

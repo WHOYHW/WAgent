@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextvars
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -61,7 +61,7 @@ async def write_audit(
         result=result,
         latency_ms=latency_ms,
         channel=channel,
-        ts=datetime.now(timezone.utc),
+        ts=datetime.now(UTC),
     )
     db.add(row)
     await db.commit()

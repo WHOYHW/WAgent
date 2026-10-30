@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ..degrade import build_tool_meta
 from ..schemas import (
-    LibraryLoanItem,
     LibraryLoansParams,
     LibraryLoansResult,
     LibraryRenewItem,

@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel
@@ -17,7 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..adapters import EduAdapter, LibAdapter
 from ..cache import TTLCache
-from ..config import Settings, settings as default_settings
+from ..config import Settings
+from ..config import settings as default_settings
 from ..logging_util import get_logger, write_audit
 from ..security import mask_student_id
 
@@ -179,7 +180,7 @@ class ToolRegistry:
         tool = self.get(name)
         if isinstance(params, dict):
             params = tool.spec.params_model.model_validate(params)
-        start = datetime.now(timezone.utc)
+        start = datetime.now(UTC)
         result_value: str = "ok"
         try:
             result = await tool.call(ctx, params)
@@ -191,7 +192,7 @@ class ToolRegistry:
             logger.exception("tool_dispatch_failed", tool=name)
             raise
         finally:
-            latency = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+            latency = int((datetime.now(UTC) - start).total_seconds() * 1000)
             # mode="json"：date/datetime/enum 序列化为 JSON 兼容类型（审计列是 JSON）。
             args_digest = _mask_args(params.model_dump(mode="json"))
             if ctx.services.db is not None:

@@ -6,8 +6,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from freezegun import freeze_time
@@ -18,7 +17,7 @@ from app.conversation import SessionExpired, SessionNotFound, SessionStore
 from app.orm import ConversationSession, Message
 from app.schemas.conversation import MessageIn
 
-NOW = datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 28, 10, 0, tzinfo=UTC)
 
 
 def _store(db, **overrides) -> SessionStore:
@@ -86,7 +85,6 @@ async def test_append_concurrent_no_duplicate_seq(db):
 
 async def test_append_uniqueness_constraint_at_db_level(db):
     """AC-IMPL01-3 兜底：(session_id, seq) 唯一约束能拦住重复 seq。"""
-    from sqlalchemy.exc import IntegrityError
 
     store = _store(db)
     sess = await store.create(student_id="20230001")
@@ -203,7 +201,7 @@ async def test_expired_session_raises(db):
         )
     )).scalar_one()
     # 把 expires_at 设为相对过去（相对测试机的真实时钟）
-    row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=10)
     await db.commit()
 
     with pytest.raises(SessionExpired):

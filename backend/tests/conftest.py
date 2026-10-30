@@ -6,19 +6,19 @@
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.cache import TTLCache  # noqa: E402
+from app.config import Settings  # noqa: E402
 from app.db import make_engine  # noqa: E402
 from app.orm import Base  # noqa: E402
 from app.schemas.meta import AdapterResponse, DegradeStatus, ToolSource  # noqa: E402
 from app.schemas.timetable import TimetableItem  # noqa: E402
-from app.cache import TTLCache  # noqa: E402
-from app.config import Settings  # noqa: E402
 from app.tools.base import Services  # noqa: E402
 
 
@@ -43,7 +43,7 @@ class StubEduAdapter:
         return AdapterResponse(
             data=[item],
             degrade_status=DegradeStatus.LIVE_OK,
-            synced_at=datetime.now(timezone.utc),
+            synced_at=datetime.now(UTC),
             source=self.source,
         )
 
@@ -53,7 +53,7 @@ class StubEduAdapter:
             raise self.fail
         return AdapterResponse(
             data=[], degrade_status=DegradeStatus.LIVE_OK,
-            synced_at=datetime.now(timezone.utc), source=self.source,
+            synced_at=datetime.now(UTC), source=self.source,
         )
 
     async def aclose(self) -> None:
@@ -73,7 +73,7 @@ class StubLibAdapter:
     async def fetch_loans(self, student_id, include_history=False):
         return AdapterResponse(
             data=[], degrade_status=DegradeStatus.LIVE_OK,
-            synced_at=datetime.now(timezone.utc), source=self.source,
+            synced_at=datetime.now(UTC), source=self.source,
         )
 
     async def renew(self, student_id, barcodes, idempotency_key):
@@ -86,11 +86,11 @@ class StubLibAdapter:
                      for b in barcodes]
             return AdapterResponse(
                 data=items, degrade_status=DegradeStatus.LIVE_OK,
-                synced_at=datetime.now(timezone.utc), source=self.source,
+                synced_at=datetime.now(UTC), source=self.source,
             ), None
         return AdapterResponse(
             data=None, degrade_status=DegradeStatus.WRITE_FAILED,
-            synced_at=datetime.now(timezone.utc), source=self.source,
+            synced_at=datetime.now(UTC), source=self.source,
         ), "图书馆系统不可用"
 
     async def aclose(self) -> None:

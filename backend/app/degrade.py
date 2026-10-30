@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,7 @@ def _load_templates() -> dict[str, Any]:
     cached = _template_cache.get("data")
     if cached is not None and _template_cache.get("mtime") == mtime:
         return cached
-    with open(_TEMPLATE_PATH, "r", encoding="utf-8") as fh:
+    with open(_TEMPLATE_PATH, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {"degrade_templates": {}}
     _template_cache["mtime"] = mtime
     _template_cache["data"] = raw
@@ -79,13 +80,13 @@ def build_tool_meta(
     ``is_stale = True`` 当且仅当 ``degrade_status == stale_cache``，或
     ``source == cache 且 now - synced_at > ttl``。
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from .schemas.meta import ToolSource
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if synced_at.tzinfo is None:
-        synced_at = synced_at.replace(tzinfo=timezone.utc)
+        synced_at = synced_at.replace(tzinfo=UTC)
 
     is_stale = compute_is_stale(
         source=source,
@@ -119,15 +120,13 @@ def compute_is_stale(
     now: Any = None,
 ) -> bool:
     """is_stale 判定规则（§3.5.2 R5.1），纯函数便于单测。"""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from .schemas.meta import ToolSource
 
     if degrade_status == DegradeStatus.STALE_CACHE:
         return True
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if synced_at.tzinfo is None:
-        synced_at = synced_at.replace(tzinfo=timezone.utc)
-    if source == ToolSource.CACHE and (now - synced_at).total_seconds() > ttl_seconds:
-        return True
-    return False
+        synced_at = synced_at.replace(tzinfo=UTC)
+    return source == ToolSource.CACHE and (now - synced_at).total_seconds() > ttl_seconds

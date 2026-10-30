@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
 from ..degrade import build_tool_meta
 from ..orm import ReminderSubscription
 from ..schemas import (
+    ReminderSubject,
     ReminderSubscribeParams,
     ReminderSubscribeResult,
-    ReminderSubject,
     ReminderTriggerType,
     TriggerConfig,
 )
@@ -67,8 +67,8 @@ class ReminderSubscribeTool(Tool):
                 channel=params.channel.value,
                 priority="P2",
                 enabled=params.enabled,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
             ctx.services.db.add(row)
             await ctx.services.db.flush()
@@ -77,12 +77,12 @@ class ReminderSubscribeTool(Tool):
             existing.trigger_config = trigger_config.model_dump()
             existing.trigger_type = trigger_type.value
             existing.enabled = params.enabled
-            existing.updated_at = datetime.now(timezone.utc)
+            existing.updated_at = datetime.now(UTC)
             subscription_id = existing.id
 
         await ctx.services.db.commit()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return ReminderSubscribeResult(
             subscription_id=subscription_id,
             student_id=ctx.student_id,

@@ -63,7 +63,7 @@ class TTLCache:
         return hit
 
 
-def make_cache(settings) -> TTLCache | "RedisCache":  # noqa: F821 - 延迟导入避免硬依赖
+def make_cache(settings) -> TTLCache | RedisCache:  # noqa: F821 - 延迟导入避免硬依赖
     """按配置构造缓存后端：``cache_backend="redis"`` 用 Redis，否则进程内。
 
     Redis 不可达时不阻塞启动——记警告日志并降级为 TTLCache

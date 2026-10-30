@@ -14,7 +14,6 @@ from pydantic import ValidationError
 
 from app.reminder import (
     CandidateGenerationError,
-    ReminderCandidate,
     daily_dispatch_count,
     due_course_candidates,
     due_library_candidates,

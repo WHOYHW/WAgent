@@ -7,8 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Callable
+from datetime import UTC, datetime
 
 import pytest
 
@@ -47,7 +46,7 @@ def redis_cache():
 
 def test_set_get_roundtrip(redis_cache):
     """写入后命中：返回值与 synced_at（datetime）还原一致。"""
-    synced = datetime(2026, 9, 22, 8, 0, tzinfo=timezone.utc)
+    synced = datetime(2026, 9, 22, 8, 0, tzinfo=UTC)
     key = _key()
     redis_cache.set(key, [{"course_name": "高数"}], 900, synced)
 
@@ -65,7 +64,7 @@ def test_get_miss_on_unknown_key(redis_cache):
 def test_expired_is_miss_but_stale_available(redis_cache):
     """逻辑过期后 get 未命中、get_stale 仍可降级回源（STALE_CACHE 语义）。"""
     key = _key()
-    redis_cache.set(key, "v", 100, datetime.now(timezone.utc))
+    redis_cache.set(key, "v", 100, datetime.now(UTC))
 
     _now[0] += 101  # 时钟推进越过 TTL
     hit, _, _ = redis_cache.get(key)

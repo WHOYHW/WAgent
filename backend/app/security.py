@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
@@ -23,7 +23,7 @@ _bearer = HTTPBearer(auto_error=False)
 def encode_token(student_id: str, *, expires_minutes: int | None = None) -> str:
     """签发会话令牌，``sub`` 即 student_id。"""
     minutes = expires_minutes or settings.jwt_expire_minutes
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": student_id,
         "iat": now,

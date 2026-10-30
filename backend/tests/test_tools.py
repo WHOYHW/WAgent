@@ -6,8 +6,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import select
+import pytest
+from conftest import StubLibAdapter, make_services
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from app.orm import AuditLog, HandoffTicket, ReminderSubscription
 from app.schemas import (
@@ -16,17 +18,14 @@ from app.schemas import (
     HandoffPriority,
     LibraryRenewParams,
     ReminderChannel,
-    ReminderSubscribeParams,
     ReminderSubject,
+    ReminderSubscribeParams,
     TimetableQueryParams,
 )
 from app.schemas.meta import DegradeStatus
 from app.security import mask_student_id
 from app.tools.base import PreconditionError, ToolContext
 from app.tools.registry import build_registry
-from conftest import StubEduAdapter, StubLibAdapter, make_services
-
-import pytest
 
 
 def _ctx(db=None, *, student_id="20230001", session_id="sess-1", services=None):

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from datetime import time
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,6 +68,22 @@ class Settings(BaseSettings):
     # ---- 推送通道（R2，任务设计 09 §2.5）----
     push_wecom_webhook_url: str | None = None  # 企微群机器人 webhook；未配置 → 开发桩
     push_timeout_seconds: float = 10.0         # 推送单次超时（与源系统 2s 语义不同）
+
+    # ---- 提醒引擎 ----
+    # 心跳是"学生不提问也会发生"的进程副作用，默认关：本地裸起 uvicorn
+    # 不触发任何扫描；测试/联调显式置 true。
+    reminder_enabled: bool = False
+    # 扫描间隔（对齐 12 §2 "轮询兜底 5 分钟"）；float 便于测试注入小间隔。
+    reminder_scan_interval_seconds: float = 300.0
+    # 静默窗口（本地时；R4 时机门消费，随 §2.6 一次补齐避免 R4 再动 config）。
+    reminder_quiet_start: time = time(23, 0)
+    reminder_quiet_end: time = time(7, 0)
+    # 单用户单日上限（P0 不计；R4 频控消费）。
+    reminder_daily_cap: int = 8
+    # claimed 遗留自愈阈值（R6 CAS 认领消费）。
+    reminder_stale_claim_seconds: int = 300
+    # 窗口前瞻 = 扫描间隔 × N（R3b 求值器消费）。
+    reminder_horizon_ticks: int = 2
 
     # ---- TTL 阈值（C5 §3.5.2 R5.2，单位：秒）----
     ttl_timetable: int = 900        # 课表正常 15min

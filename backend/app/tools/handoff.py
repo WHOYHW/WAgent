@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ..degrade import build_tool_meta
 from ..logging_util import get_logger, write_audit
 from ..orm import HandoffTicket
-from ..schemas import FactSummary, HandoffCreateParams, HandoffPriority, HandoffTicketOut
+from ..schemas import HandoffCreateParams, HandoffTicketOut
 from ..schemas.meta import DegradeStatus, ToolSource
 from ..security import mask_student_id
 from .base import Tool, ToolContext, ToolSpec
@@ -45,7 +45,7 @@ class HandoffCreateTool(Tool):
             suggested_owner=params.suggested_owner,
             priority=params.priority.value,
             status="open",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         ctx.services.db.add(row)
         await ctx.services.db.commit()
@@ -64,7 +64,7 @@ class HandoffCreateTool(Tool):
         except Exception:  # noqa: BLE001 — 审计失败不阻断工单返回
             logger.exception("audit_write_failed", tool="handoff_create")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # meta 是必填字段，须在校验时一并提供（先 validate 再 model_copy 会因缺 meta 失败）。
         # 写内部工单库：source=internal、无外部源系统、永不 stale（AC1.4）。
         row_data = {c.name: getattr(row, c.name) for c in row.__table__.columns}

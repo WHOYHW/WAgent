@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -52,10 +51,7 @@ class ToolMeta(BaseModel):
     stale_reason: str | None = Field(default=None, description="陈旧原因，如 source_timeout")
 
 
-T = TypeVar("T")
-
-
-class AdapterResponse(BaseModel, Generic[T]):
+class AdapterResponse[T](BaseModel):
     """适配器统一封装（§3.1.2 R1.4）。
 
     区分「业务结果」与「降级标记」：工具层据此决定是否设置 ``meta.is_stale``。

@@ -87,7 +87,7 @@ async def test_wecom_send_success_shape_and_receipt():
     assert r.status == "sent" and r.ok and not r.is_degraded
     assert captured["url"] == WEBHOOK
     assert b'"msgtype":"text"' in captured["body"]
-    assert "高等数学".encode("utf-8") in captured["body"]
+    assert "高等数学".encode() in captured["body"]
 
 
 async def test_wecom_errcode_nonzero_is_failed_with_errmsg():

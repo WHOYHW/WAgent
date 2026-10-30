@@ -9,9 +9,10 @@
 from __future__ import annotations
 
 import json
-from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from abc import ABC
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -22,8 +23,10 @@ from tenacity import (
 )
 
 from ..cache import TTLCache
-from ..config import Settings, settings as default_settings
+from ..config import Settings
+from ..config import settings as default_settings
 from ..schemas.meta import AdapterResponse, DegradeStatus, ToolSource
+
 
 class SourceNotConfiguredError(Exception):
     """源系统未配置（EDU_API_BASE_URL / LIB_SIP2_HOST 为空）。不重试。"""
@@ -40,7 +43,7 @@ FetchFn = Callable[[], Awaitable[tuple[Any, datetime]]]
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class BaseAdapter(ABC):

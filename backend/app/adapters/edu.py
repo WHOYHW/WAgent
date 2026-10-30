@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-import httpx
-
 from ..schemas.grade import GradeItem
 from ..schemas.meta import AdapterResponse, ToolSource
 from ..schemas.timetable import TimetableItem

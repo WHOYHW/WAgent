@@ -4,3 +4,7 @@ pytest-asyncio>=1.4
 pytest-cov>=7.1
 respx>=0.23
 freezegun>=1.5         # 时间冻结测 TTL / is_stale
+
+# 工程化基线（16：lint + 导入契约，运行时零新增）
+ruff>=0.14
+import-linter>=2.0

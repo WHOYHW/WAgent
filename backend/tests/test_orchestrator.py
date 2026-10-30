@@ -8,14 +8,12 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
-import pytest
 from sqlalchemy import select
 
 from app.config import Settings
 from app.conversation import SessionStore
-from app.orm import AuditLog, HandoffTicket, Message
 from app.orchestrator import (
     Event,
     EventType,
@@ -23,8 +21,9 @@ from app.orchestrator import (
     Orchestrator,
     ToolCallRequest,
 )
-from app.security import mask_student_id
+from app.orm import AuditLog, HandoffTicket, Message
 from app.schemas.conversation import MessageIn
+from app.security import mask_student_id
 from app.tools import build_registry
 from tests.conftest import make_services
 
@@ -220,7 +219,7 @@ async def test_expired_session_rebuilds(db):
         select(ConversationSession).where(
             ConversationSession.session_id == sess.session_id)
     )).scalar_one()
-    row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=10)
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=10)
     await db.commit()
 
     events = await collect(orch.run(STUDENT, "你好", session_id=sess.session_id))

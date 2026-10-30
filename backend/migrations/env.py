@@ -16,8 +16,8 @@ from sqlalchemy import engine_from_config, pool
 # 将 backend 目录加入 sys.path，使 `import app` 生效（alembic 从 backend/ 运行）。
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.config import settings  # noqa: E402
 from app import orm  # noqa: E402,F401  确保模型全部注册
+from app.config import settings  # noqa: E402
 from app.orm import Base  # noqa: E402
 
 config = context.config

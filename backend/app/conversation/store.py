@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +59,7 @@ class SessionStore:
 
     async def create(self, student_id: str, channel: str = "wecom") -> Conversation:
         """创建会话。``session_id`` 由应用层��成 ``sess_<16hex>``，全局唯一。"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         session_id = f"sess_{uuid.uuid4().hex[:16]}"
         row = ConversationSession(
             session_id=session_id,
@@ -138,7 +138,7 @@ class SessionStore:
             tool_calls=msg.tool_calls,
             tool_call_id=msg.tool_call_id,
             trace_id=msg.trace_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self.db.add(row)
         await self._touch(session_id)
@@ -160,7 +160,7 @@ class SessionStore:
                 tool_calls=m.tool_calls,
                 tool_call_id=m.tool_call_id,
                 trace_id=m.trace_id,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             self.db.add(row)
             rows.append(row)
@@ -216,13 +216,13 @@ class SessionStore:
             role="system",
             content=summary,
             is_summary=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self.db.add(summary_row)
         await self.db.flush()  # 拿到 summary_row.id
 
         # 软删旧消息 + 更新会话指针。
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for r in old_rows:
             r.deleted_at = now
         sess_stmt = select(ConversationSession).where(
@@ -249,10 +249,10 @@ class SessionStore:
         SQLite 不原生支持带时区类型，SQLAlchemy 读出的 ``expires_at`` 可能是
         naive datetime；比较前统一按 UTC 处理。
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires_at = row.expires_at
         if expires_at is not None and expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expires_at = expires_at.replace(tzinfo=UTC)
         if (
             row.status == "active"
             and expires_at is not None
@@ -279,7 +279,7 @@ class SessionStore:
             update(ConversationSession)
             .where(ConversationSession.session_id == session_id)
             .values(
-                expires_at=datetime.now(timezone.utc)
+                expires_at=datetime.now(UTC)
                 + timedelta(seconds=self.settings.session_ttl_seconds),
                 updated_at=func.now(),
             )

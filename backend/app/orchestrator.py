@@ -16,10 +16,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
-from typing import Any, AsyncIterator, Protocol
+from typing import Any, Protocol
 
 from .config import Settings
 from .conversation import SessionExpired, SessionNotFound, SessionStore

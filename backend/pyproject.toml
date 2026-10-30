@@ -1,0 +1,49 @@
+[tool.ruff]
+# 与 pytest.ini 并存：本文件只装 ruff / importlinter 配置，测试配置零变更（16 §八）。
+line-length = 120
+target-version = "py313"
+include = ["app/**/*.py", "tests/**/*.py", "*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "TID251"]
+ignore = [
+    "E501",   # D3（16 §二）：现存长注释最长 338 字符，首轮开启会噪音淹没真问题，随 formatter 决策一并处理
+    "UP042",  # (str, Enum) → StrEnum 会改变 f"{member}" 语义（"类名.成员" → "成员值"），序列化/日志行为非纯机械变更；维持现状，待 style 提交一并评审
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 依赖注入的标准写法（07 设计 §2.4），非 bug：Depends() 在参数默认值中是惯用法。
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"apscheduler".msg = "D1 裁决：心跳用进程内 asyncio（docs/项目文档/09），禁止引入。"
+"requests".msg = "HTTP 统一走 httpx（adapters/base.py 契约）。"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # conftest.py 的 sys.path 注入先于 app 导入
+
+# ---- 导入契约（16 §四：分层单向 + 引擎/编排互不依赖，层序校准见各契约注释）----
+
+[tool.importlinter]
+root_packages = ["app"]
+
+[[tool.importlinter.contracts]]
+name = "提醒引擎与编排层互不依赖（09 §2.1）"
+type = "independence"
+modules = ["app.reminder", "app.orchestrator"]
+
+[[tool.importlinter.contracts]]
+name = "主链路分层单向（12 分层架构机器化）"
+type = "layers"
+layers = [
+    "app.main",        # 顶层装配，唯一允许 import 一切的位置
+    "app.llm",         # 仅依赖 orchestrator 的冻结协议（03 §2.4）
+    "app.orchestrator",
+    "app.reminder",
+    "app.tools",
+    "app.conversation",
+    "app.adapters",
+    "app.guardrail", "app.stale", "app.degrade", "app.logging_util",
+    "app.db", "app.security", "app.cache",
+    "app.orm", "app.schemas", "app.config", "app.cache_redis",
+]

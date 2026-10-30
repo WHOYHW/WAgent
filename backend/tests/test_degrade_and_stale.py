@@ -5,20 +5,20 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import respx
 
 from app.adapters.base import SourceNotConfiguredError
-from app.adapters.library import LibAdapter
 from app.adapters.edu import EduAdapter
+from app.adapters.library import LibAdapter
 from app.cache import TTLCache
 from app.config import Settings
-from app.degrade import compute_is_stale, build_tool_meta
+from app.degrade import build_tool_meta, compute_is_stale
 from app.schemas.meta import DegradeStatus, ToolSource
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 # ---- is_stale 判定规则（R5.1）----

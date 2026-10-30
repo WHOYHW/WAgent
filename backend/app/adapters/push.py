@@ -23,7 +23,8 @@ from typing import Protocol, runtime_checkable
 
 import httpx
 
-from ..config import Settings, settings as default_settings
+from ..config import Settings
+from ..config import settings as default_settings
 from ..schemas.reminder import ReminderChannel
 from ..security import mask_student_id
 
