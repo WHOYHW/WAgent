@@ -26,6 +26,7 @@ from .config import Settings
 from .conversation import SessionExpired, SessionNotFound, SessionStore
 from .guardrail import GuardrailResult, check_redlines
 from .logging_util import get_logger, get_trace_id, set_trace_id, write_audit
+from .prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from .schemas import HandoffCreateParams, HandoffPriority, MessageIn
 from .schemas.conversation import Message
 from .security import make_idempotency_key
@@ -94,17 +95,9 @@ class LLMClient(Protocol):
 # 常量区
 # ---------------------------------------------------------------------------
 
-DEFAULT_SYSTEM_PROMPT = """你是湖南理工大学的校园助手，为学生提供课表、成绩、图书馆借阅查询与提醒订阅服务。
-
-回答规则：
-1. 只依据工具返回的数据回答，不编造任何事实；未查询到的信息就说不知道。
-2. 工具结果标注 is_stale=true 或 degrade_status=stale_cache 时，必须在回答中说明"该数据来自缓存（同步于 <synced_at>），可能不是最新"。
-3. 工具返回 unavailable 时，明确告知该服务暂时不可用，不要猜测结果。
-4. 不回答"能否毕业、学籍处分、评优资格"等终局性问题——请学生咨询二级学院教务办。
-5. 不查询、不推断他人信息；涉及隐私的请求一律拒绝。
-6. 需要数据时直接调用工具，不要向用户复述参数或询问你已能推断的信息。
-7. 身份信息（student_id）由系统自动注入，你不需要也无法填写。
-8. 续借是唯一需要用户确认的操作：必须先查询在借清单，向用户完整展示将续借的图书条码与到期日变化，明确请用户回复"确认续借"；收到确认后再次调用续借工具，两次调用的图书条码必须完全一致。确认状态由系统核验，不要试图代替用户确认。"""
+# 系统提示词唯一真源在 prompts.py（版本化，评测按 PROMPT_VERSION 归因）；
+# 此处保留别名，现有测试与调用方不感知迁移。
+DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT
 
 # 星期中文映射（05 §6.3 遗留项①：当前日期注入的换算辅助）
 _WEEKDAY_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
@@ -533,6 +526,10 @@ class Orchestrator:
                     for piece in _split_script(text):
                         yield self._emit(EventType.TOKEN, {"delta": piece}, session)
                 final_msg = await self._finalize(session, text, trace_id)
+                await self._audit_turn_complete(
+                    student_id, session, trace_id,
+                    tools_used=used, compressed=compressed, budget_exhausted=True,
+                )
                 yield self._emit(
                     EventType.DONE,
                     {
@@ -611,6 +608,10 @@ class Orchestrator:
                 continue
             # 纯文本 → 正常收尾
             final_msg = await self._finalize(session, text, trace_id)
+            await self._audit_turn_complete(
+                student_id, session, trace_id,
+                tools_used=used, compressed=compressed, budget_exhausted=False,
+            )
             yield self._emit(
                 EventType.DONE,
                 {
@@ -782,6 +783,42 @@ class Orchestrator:
             session.session_id,
             MessageIn(role="assistant", content=text, trace_id=trace_id),
         )
+
+    async def _audit_turn_complete(
+        self,
+        student_id: str,
+        session,
+        trace_id: str,
+        *,
+        tools_used: int,
+        compressed: bool,
+        budget_exhausted: bool,
+    ) -> None:
+        """对话收尾审计（任务 17 前置的归因闭环）。
+
+        一轮对话落一条 ``turn_complete``：trace_id 定位消息轨迹（与
+        conversation_message.trace_id 同源），prompt_version × llm_model
+        定位"哪版提示词 × 哪个模型"产生了这轮行为；工具调用明细由
+        tools/base.py 各自留痕，此处只做轮级汇总。审计失败不阻断收尾。
+        """
+        try:
+            await write_audit(
+                self.store.db,
+                action="turn_complete",
+                student_id=student_id,
+                session_id=session.session_id,
+                args_digest={
+                    "trace_id": trace_id,
+                    "tools_used": tools_used,
+                    "compressed": compressed,
+                    "budget_exhausted": budget_exhausted,
+                },
+                result="ok",
+                prompt_version=PROMPT_VERSION,
+                llm_model=self.settings.llm_model,
+            )
+        except Exception:
+            logger.exception("turn_complete_audit_failed")
 
     # ---- 辅助 ----
 

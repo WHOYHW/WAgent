@@ -46,11 +46,14 @@ async def write_audit(
     result: str | None = None,
     latency_ms: int | None = None,
     channel: str | None = None,
+    prompt_version: str | None = None,
+    llm_model: str | None = None,
 ) -> None:
     """写脱敏审计记录（student_id 脱敏，参数摘要化）并提交。
 
     审计与业务写入相互独立：本函数自带 commit，调用方（dispatch/handoff）负责
     以 try/except 隔离审计失败，不阻断主流程。
+    ``prompt_version`` / ``llm_model`` 为归因维度（任务 17），由对话收尾审计携带。
     """
     row = AuditLog(
         student_id=mask_student_id(student_id) if student_id else None,
@@ -61,6 +64,8 @@ async def write_audit(
         result=result,
         latency_ms=latency_ms,
         channel=channel,
+        prompt_version=prompt_version,
+        llm_model=llm_model,
         ts=datetime.now(UTC),
     )
     db.add(row)

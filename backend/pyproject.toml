@@ -45,5 +45,5 @@ layers = [
     "app.adapters",
     "app.guardrail", "app.stale", "app.degrade", "app.logging_util",
     "app.db", "app.security", "app.cache",
-    "app.orm", "app.schemas", "app.config", "app.cache_redis",
+    "app.orm", "app.schemas", "app.config", "app.cache_redis", "app.prompts",
 ]

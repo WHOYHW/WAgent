@@ -14,6 +14,7 @@ sqlalchemy[asyncio]>=2.0.54
 aiosqlite>=0.22        # 开发/测试默认 SQLite 异步驱动
 asyncpg>=0.31          # 生产 PG 异步驱动（backend/.env 的 DB_URL 用 asyncpg 方言）
 alembic>=1.20
+psycopg2-binary>=2.9   # alembic 同步驱动（migrations/env.py 走 DB_URL_SYNC 的 psycopg2 方言）
 
 # ---- HTTP 客户端与缓存（C4/C5）----
 httpx>=0.28

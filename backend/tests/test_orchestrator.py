@@ -22,6 +22,7 @@ from app.orchestrator import (
     ToolCallRequest,
 )
 from app.orm import AuditLog, HandoffTicket, Message
+from app.prompts import PROMPT_VERSION, SYSTEM_PROMPT
 from app.schemas.conversation import MessageIn
 from app.security import mask_student_id
 from app.tools import build_registry
@@ -149,6 +150,10 @@ async def test_normal_one_tool_call_event_sequence(db):
     assert llm.calls[0]["messages"][0]["role"] == "system"
     # 05 §6.3 遗留项①：system prompt 每轮注入当前日期（相对日期查询的锚点）
     assert date.today().isoformat() in llm.calls[0]["messages"][0]["content"]
+    # 提示词外移（P1）无行为变化：日期行之前的正文与 prompts.py 真源逐字一致
+    sys_content = llm.calls[0]["messages"][0]["content"]
+    assert sys_content.startswith(SYSTEM_PROMPT)
+    assert sys_content[len(SYSTEM_PROMPT):].lstrip().startswith("当前日期：")
     assert llm.calls[0]["messages"][-1]["role"] == "user"
     second = llm.calls[1]["messages"]
     assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"]
@@ -719,3 +724,66 @@ async def test_unknown_tool_fed_back(db):
     assert "未知工具" in second[-1]["content"]
     assert find_event(events, EventType.TOOL_CALL).data["args_digest"]
     assert events[-1].type == EventType.DONE
+
+
+# ---- 收尾审计归因（任务 17 前置：trace_id × prompt_version × llm_model）----
+
+
+async def _final_assistant_trace_id(db, session_id: str) -> str | None:
+    msgs = (
+        await db.execute(
+            select(Message).where(
+                Message.session_id == session_id, Message.role == "assistant"
+            )
+        )
+    ).scalars().all()
+    return msgs[-1].trace_id
+
+
+async def test_turn_complete_audit_carries_attribution(db):
+    """正常收尾：turn_complete 审计带齐归因三要素，模型名取自 settings。"""
+    orch, _, store, _, _ = make_orch(
+        db,
+        [
+            tool_call_script("timetable_query", TIMETABLE_ARGS),
+            text_script("明天有 2 节课。"),
+        ],
+        llm_model="test-model",
+    )
+    events = await collect(orch.run(STUDENT, "我明天有什么课"))
+
+    assert events[-1].type == EventType.DONE
+    rows = await audit_rows(db, "turn_complete")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.result == "ok"
+    assert row.prompt_version  # 非空：审计缺版本号 = 评测归因链断裂
+    assert row.prompt_version == PROMPT_VERSION
+    assert row.llm_model == "test-model"
+    assert row.student_id == mask_student_id(STUDENT)  # 审计脱敏口径不变
+    # trace_id 与最终 assistant 消息同源，凭它能串起整条消息轨迹
+    assert row.args_digest["trace_id"] == await _final_assistant_trace_id(
+        db, row.session_id
+    )
+    assert row.args_digest["tools_used"] == 1
+    assert row.args_digest["compressed"] is False
+    assert row.args_digest["budget_exhausted"] is False
+
+
+async def test_turn_complete_audit_on_fused_path(db):
+    """熔断收尾同样落 turn_complete：budget_exhausted=True，归因维度不缺。"""
+    llm = LooperLLM(batch_size=3)
+    store = SessionStore(db, Settings(llm_model="test-model"))
+    registry = build_registry(make_services(db))
+    orch = Orchestrator(store, registry, llm, settings=store.settings)
+
+    events = await collect(orch.run(STUDENT, "帮我查这学期全部安排"))
+
+    assert events[-1].type == EventType.DONE
+    rows = await audit_rows(db, "turn_complete")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.prompt_version == PROMPT_VERSION
+    assert row.llm_model == "test-model"
+    assert row.args_digest["budget_exhausted"] is True
+    assert row.args_digest["tools_used"] == 6

@@ -50,10 +50,19 @@ class FakePush:
         return None
 
 
-LIB_VARS = {"items": [{"title": "三体", "barcode": "01020", "due_date": date(2026, 10, 30)}]}
+# 渲染数据必须相对当前时间构造：render_library_content 对"已到期"直接抛错
+# （09 K3 事故路径），硬编码日期会随真实时间流逝变成时间炸弹（2026-11-02 实证）。
+LIB_VARS = {
+    "items": [
+        {"title": "三体", "barcode": "01020", "due_date": date.today() + timedelta(days=3)}
+    ]
+}
 COURSE_VARS = {
     "course_name": "数据结构", "location": "敬贤楼201", "teacher": "王老师",
-    "start": datetime(2026, 10, 27, 14, 0, tzinfo=CAMPUS),
+    "start": (
+        datetime.now(CAMPUS).replace(hour=14, minute=0, second=0, microsecond=0)
+        + timedelta(days=1)
+    ),
     "is_changed": False, "change_note": "",
 }
 

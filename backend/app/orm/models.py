@@ -114,6 +114,9 @@ class AuditLog(IdMixin, Base):
     result: Mapped[str | None] = mapped_column(String(16), nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channel: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # 归因维度（任务 17 前置）：评测分数按这两项定位到"哪个提示词版本 × 哪个模型"
+    prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    llm_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ConversationSession(IdMixin, Base):
