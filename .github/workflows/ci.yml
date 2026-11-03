@@ -25,3 +25,6 @@ jobs:
       - run: ruff check .
       - run: lint-imports
       - run: pytest
+      # 黄金集门禁（17 §六）：FakeLLM 档跑 20 条 → 评分（红线零容忍 + 对
+      # eval/baseline.json 不回退）。--live 真机档显式 opt-in，CI 不触网。
+      - run: python -m eval.run_eval && python -m eval.score

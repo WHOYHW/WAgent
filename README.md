@@ -98,7 +98,7 @@ pip install -r requirements.txt
   - [x] LLM 适配器 `ArkLLMClient`：火山方舟（豆包）OpenAI 兼容流式接入、tool_calls 分片聚合、thinking 三态可配（默认不发厂商私有参数，任何兼容端点零改动切换）、`--live` 真机联调（任务设计文档 [`docs/项目文档/05-LLM适配器设计.md`](./docs/项目文档/05-LLM适配器设计.md)）
   - [x] SSE 端点 `POST /agent/chat`：六类事件 → SSE 帧流式对话接口、依赖注入装配（`get_llm`/`get_orchestrator`）、断线清理、配置门控 CORS、首个 API 级测试基建（httpx ASGITransport），真机联调打字机效果确认（任务设计文档 [`docs/项目文档/07-SSE端点设计.md`](./docs/项目文档/07-SSE端点设计.md)）
 - [x] 工程化基线：lint（ruff，含 TID251 禁用清单）+ 分层导入契约（import-linter 两契约，AC-16b 负向验证通过）+ CI（GitHub Actions）——238 项测试、09 D1 裁决与 12 分层架构由机器强制（任务设计 [`docs/项目文档/16-工程化基线设计.md`](./docs/项目文档/16-工程化基线设计.md)，AC-16a/b 本地达成；AC-16c Actions 首跑 / AC-16d 分支保护待 push 后在仓库设置验证）
-- [ ] 评测黄金集与端到端联调
+- [x] 评测黄金集与端到端联调：20 条起步用例（Pydantic 建模 + 受控词表校验）→ run_eval 两档运行器（fake 脚本档 CI 可跑 / --live 真机档手动留档）→ score 评分器（D3 红线零容忍 + baseline 不回退门禁 + 退出码 0/1/2），CI 在 pytest 后追加评测门禁；fake 档 20/20，live 档首跑 16/20（4 条失败定性为用例/桩错配并修正：桩补真实在借、quiet-hours 期望改如实能力边界、2 条标 fake_only），AC-17c 实弹演习通过（任务设计 [`docs/项目文档/17-评测黄金集设计.md`](./docs/项目文档/17-评测黄金集设计.md)；[cases.py](./backend/eval/cases.py)｜[run_eval.py](./backend/eval/run_eval.py)｜[score.py](./backend/eval/score.py)）
 
 ---
 

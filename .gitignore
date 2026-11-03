@@ -44,3 +44,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 黄金集运行产物（17）：fake 产物只做门禁比对不入库；live 结果留档提交
+backend/eval/results/*
+!backend/eval/results/live-*.json

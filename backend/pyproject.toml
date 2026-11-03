@@ -2,7 +2,7 @@
 # 与 pytest.ini 并存：本文件只装 ruff / importlinter 配置，测试配置零变更（16 §八）。
 line-length = 120
 target-version = "py313"
-include = ["app/**/*.py", "tests/**/*.py", "*.py"]
+include = ["app/**/*.py", "eval/**/*.py", "tests/**/*.py", "*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "TID251"]
