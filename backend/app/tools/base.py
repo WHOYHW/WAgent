@@ -54,8 +54,23 @@ class ToolSpec:
 
     @property
     def parameters(self) -> dict:
-        """JSON Schema 由 Pydantic 导出（R1.1，禁止手写）。"""
-        return self.params_model.model_json_schema()
+        """JSON Schema 由 Pydantic 导出（R1.1，禁止手写）。
+
+        导出层剥离 ``student_id``（约定③：身份由会话注入，不作为模型可填
+        参数——schema 里不出现，模型想伪造都无从下手）；dispatch 入口仍由
+        编排层以 ``ctx.student_id`` 覆盖回填（orchestrator._dispatch_one），
+        两层防线互为兜底。
+        """
+        schema = self.params_model.model_json_schema()
+        schema.get("properties", {}).pop("student_id", None)
+        required = schema.get("required")
+        if required and "student_id" in required:
+            remaining = [f for f in required if f != "student_id"]
+            if remaining:
+                schema["required"] = remaining
+            else:
+                schema.pop("required")
+        return schema
 
     def to_openai_function(self) -> dict:
         """OpenAI Function Calling 的 tools 元素（R2.1）。"""
