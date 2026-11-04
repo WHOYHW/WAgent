@@ -18,7 +18,7 @@
 
 ```
 WAgent/
-├── docs/                     设计文档集（9 篇，含 32 张 Mermaid 流程图）
+├── docs/                     设计文档集（docs/ 11 篇 + docs/项目文档/ 任务设计 17 篇，含 Mermaid 流程图）
 │   ├── README.md             文档索引与阅读路径
 │   ├── 00-行业总览-校园业务全景与AI落地地图.md
 │   ├── 01-业务域-教务与学工.md
@@ -28,7 +28,9 @@ WAgent/
 │   ├── 11-阶段一-AI可执行与人工兜底边界矩阵.md
 │   ├── 12-阶段一-技术架构与数据契约.md
 │   ├── 13-阶段一-风控合规与评测上线.md
-│   └── 14-技术选型-Agent平台后端框架对比.md
+│   ├── 14-技术选型-Agent平台后端框架对比.md
+│   ├── 15-技术选型-FastAPI权限模型与SpringSecurity对应.md
+│   └── 15-阶段一-核心设计任务实施规范.md
 ├── backend/                  阶段一后端实现（Python / FastAPI 方向）
 │   └── app/
 │       ├── config.py         全局配置（环境变量优先）
@@ -93,13 +95,14 @@ pip install -r requirements.txt
   - [x] R3 心跳 + 求值 + 调试面：`ReminderEngine`（start/stop 幂等、±10% 抖动、scan_once 两层异常捕获永不抛出）→ 双求值器接线（新鲜度裁决 stale/unavailable 零候选、CAMPUS_TZ 固定 +8、快照日按订阅 timing 最大提前量）→ `POST /agent/reminders/scan` 手动触发（ScanStats 透传）（实施设计 [`docs/项目文档/10-提醒引擎R3a-心跳骨架与接线设计.md`](./docs/项目文档/10-提醒引擎R3a-心跳骨架与接线设计.md)｜[11-求值器接线](./docs/项目文档/11-提醒引擎R3b-求值器接线设计.md)｜[12-手动触发调试面](./docs/项目文档/12-提醒引擎R3c-手动触发调试面设计.md)；[engine.py](./backend/app/reminder/engine.py)｜[evaluator.py](./backend/app/reminder/evaluator.py)）
   - [x] R4 渲染 + 四闸 + 下发闭环：渲染纯函数（借阅聚合/课程文案，`is_changed` 高亮【调停课】）→ 静默门（`CAMPUS_TZ` 跨午夜，P0 穿透）→ claim（INSERT + SAVEPOINT，IntegrityError 先 CAS 认领自愈再让路）→ 频控（`daily_dispatch_count` 纯函数零第二份逻辑，P0 不计数）→ 聚合（非 P0 合并【提醒汇总】）→ 推送 → 终态单语句回写（实施设计 [`docs/项目文档/13-提醒引擎R4a-渲染纯函数设计.md`](./docs/项目文档/13-提醒引擎R4a-渲染纯函数设计.md)｜[14-四闸全序与下发闭环](./docs/项目文档/14-提醒引擎R4b-四闸全序与下发闭环设计.md)；[render.py](./backend/app/reminder/render.py)｜[gate.py](./backend/app/reminder/gate.py)）
   - [x] R5 效果回流：契约层（`ReminderFeedbackAction` 单向状态机词表 + 无 `student_id` 请求体，L4）→ `POST /agent/reminders/feedback`（学生 JWT + 行归属校验 404；重复/乱序幂等 no-op + 200，否决 409）→ 统计口径（`loss_avoidance_stats` 纯函数：分母 = sent 且非重发行；`GET /agent/reminders/stats` 调试面，G6/AC-12 可演示）→ 4 组 12 项测试（归属/open 幂等/状态机/口径闭环）（实施设计 [`docs/项目文档/15-提醒引擎R5-效果回流设计.md`](./docs/项目文档/15-提醒引擎R5-效果回流设计.md)；[feedback.py](./backend/app/reminder/feedback.py)｜[stats.py](./backend/app/reminder/stats.py)｜[test_api_reminder_feedback.py](./backend/tests/test_api_reminder_feedback.py)）
-- [ ] 编排层与 SSE 流式对话接口
+- [x] 编排层与 SSE 流式对话接口
   - [x] 编排核心 `Orchestrator`：对话循环（会话准备/红线拦截/历史压缩/工具路由/迭代熔断/写门禁）+ 事件流与 `LLMClient` 协议（任务设计文档 [`docs/项目文档/03-编排核心Orchestrator设计.md`](./docs/项目文档/03-编排核心Orchestrator设计.md)）
   - [x] LLM 适配器 `ArkLLMClient`：火山方舟（豆包）OpenAI 兼容流式接入、tool_calls 分片聚合、thinking 三态可配（默认不发厂商私有参数，任何兼容端点零改动切换）、`--live` 真机联调（任务设计文档 [`docs/项目文档/05-LLM适配器设计.md`](./docs/项目文档/05-LLM适配器设计.md)）
   - [x] SSE 端点 `POST /agent/chat`：六类事件 → SSE 帧流式对话接口、依赖注入装配（`get_llm`/`get_orchestrator`）、断线清理、配置门控 CORS、首个 API 级测试基建（httpx ASGITransport），真机联调打字机效果确认（任务设计文档 [`docs/项目文档/07-SSE端点设计.md`](./docs/项目文档/07-SSE端点设计.md)）
 - [x] 工程化基线：lint（ruff，含 TID251 禁用清单）+ 分层导入契约（import-linter 两契约，AC-16b 负向验证通过）+ CI（GitHub Actions）——238 项测试、09 D1 裁决与 12 分层架构由机器强制（任务设计 [`docs/项目文档/16-工程化基线设计.md`](./docs/项目文档/16-工程化基线设计.md)，AC-16a/b 本地达成；AC-16c Actions 首跑 / AC-16d 分支保护待 push 后在仓库设置验证）
 - [x] 评测黄金集与端到端联调：20 条起步用例（Pydantic 建模 + 受控词表校验）→ run_eval 两档运行器（fake 脚本档 CI 可跑 / --live 真机档手动留档）→ score 评分器（D3 红线零容忍 + baseline 不回退门禁 + 退出码 0/1/2），CI 在 pytest 后追加评测门禁；fake 档 20/20，live 档首跑 16/20（4 条失败定性为用例/桩错配并修正：桩补真实在借、quiet-hours 期望改如实能力边界、2 条标 fake_only），AC-17c 实弹演习通过（任务设计 [`docs/项目文档/17-评测黄金集设计.md`](./docs/项目文档/17-评测黄金集设计.md)；[cases.py](./backend/eval/cases.py)｜[run_eval.py](./backend/eval/run_eval.py)｜[score.py](./backend/eval/score.py)）
+- [x] 加固与重构收尾（P3）：会话身份层专属测试 8 项（无令牌/篡改/过期/伪造身份/越权访问，全走 httpx ASGITransport 模式）+ `ToolSpec.parameters` 导出层剥离 `student_id`（约定③ 补齐：模型在导出 Schema 中看不到该参数，与编排层覆盖回填互为兜底）+ `orchestrator.py` 拆包（857 行 → `app/orchestrator/` 包 events / guardrail_assets / summarize / loop 四模块，`__init__.py` 重导出保持公共 API 不变）+ 文档收尾（15 §7 工程化约定、docs 索引补 16/17）；日常门禁命令速查见 [`docs/15-阶段一-核心设计任务实施规范.md` §7](./docs/15-阶段一-核心设计任务实施规范.md)
 
 ---
 
-*阶段一交付 ｜ 文档版本 v1.0*
+*阶段一交付 ｜ 文档版本 v1.1（2026-11-04）*
