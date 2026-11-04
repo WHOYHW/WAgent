@@ -1,14 +1,11 @@
-"""编排核心（M2）：对话循环 = 会话准备 → 红线门 → 压缩 → Agent Loop → 收尾。
+"""对话循环主体（M2）：会话准备 → 红线门 → 压缩 → Agent Loop → 收尾。
 
-事件流协议与 ``LLMClient`` Protocol 见设计文档
-``docs/项目文档/03-编排核心Orchestrator设计.md``（v1.1）§2.3/§2.4——
-两个协议已冻结，子任务 3（LLM 适配器）与子任务 4（SSE 端点）据此并行开发。
-
-设计原则（设计文档 §2.1）：
+设计原则（设计文档 03 §2.1）：
 - P1 单一入口：``run()`` 是编排层唯一合法入口，所有对话过同一套
   红线/预算/审计/所有者校验；
-- P2 依赖倒置：LLM 以 Protocol 声明，单测注入 ``FakeLLM``，不碰网络；
-- P4 确定性优先：红线、熔断、压缩触发、写确认放行全是确定性代码路径；
+- P2 依赖倒置：LLM 以 Protocol 声明（events.py），单测注入 ``FakeLLM``；
+- P4 确定性优先：红线、熔断、压缩触发、写确认放行全是确定性代码路径
+  （资产在 guardrail_assets.py，压缩在 summarize.py）；
 - P6 参数不可信：LLM 生成的工具参数中的身份/授权/幂等字段一律剥离，
   值由服务端注入。
 """
@@ -17,83 +14,33 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from datetime import date
-from enum import Enum
-from typing import Any, Protocol
+from typing import Any
 
-from .config import Settings
-from .conversation import SessionExpired, SessionNotFound, SessionStore
-from .guardrail import GuardrailResult, check_redlines
-from .logging_util import get_logger, get_trace_id, set_trace_id, write_audit
-from .prompts import PROMPT_VERSION, SYSTEM_PROMPT
-from .schemas import HandoffCreateParams, HandoffPriority, MessageIn
-from .schemas.conversation import Message
-from .security import make_idempotency_key
-from .tools import ToolContext, ToolRegistry
-from .tools.base import _mask_args
+from ..config import Settings
+from ..conversation import SessionExpired, SessionNotFound, SessionStore
+from ..guardrail import GuardrailResult, check_redlines
+from ..logging_util import get_logger, get_trace_id, set_trace_id, write_audit
+from ..prompts import PROMPT_VERSION, SYSTEM_PROMPT
+from ..schemas import HandoffCreateParams, MessageIn
+from ..schemas.conversation import Message
+from ..security import make_idempotency_key
+from ..tools import ToolContext, ToolRegistry
+from ..tools.base import _mask_args
+from .events import Event, EventType, LLMChunk, LLMClient, ToolCallRequest
+from .guardrail_assets import (
+    BLOCKED_REPLY_TEMPLATES,
+    HARD_FUSE_SCRIPT,
+    LLM_EXCLUDED_TOOLS,
+    R5_LIFELINE_SCRIPT,
+    REDLINE_OWNER,
+    REDLINE_PRIORITY,
+    RENEW_CONFIRM_KEYWORDS,
+    RENEW_TOOL_NAME,
+)
+from .summarize import compress_or_degrade
 
 logger = get_logger("orchestrator")
-
-
-# ---------------------------------------------------------------------------
-# 协议区（可被子任务 3/4 import）
-# ---------------------------------------------------------------------------
-
-
-class EventType(str, Enum):
-    """六类事件（设计文档 §2.3）。"""
-
-    THINKING = "thinking"        # 阶段信号（前端"正在…"状态）
-    TOOL_CALL = "tool_call"      # LLM 决定调用某工具
-    TOOL_RESULT = "tool_result"  # 工具执行结果摘要（含溯源 meta）
-    TOKEN = "token"              # LLM 文本增量（真流式透传）
-    DONE = "done"                # 终态：本轮对话完成
-    ERROR = "error"              # 终态：编排层自身故障
-
-
-@dataclass
-class Event:
-    """事件信封。``session_id`` 必回传（新会话/重建时前端需替换）。"""
-
-    type: EventType
-    data: dict[str, Any]
-    session_id: str | None = None
-    trace_id: str | None = None
-
-
-@dataclass
-class ToolCallRequest:
-    """LLM 请求的一次工具调用（OpenAI tool_calls 元素的直译）。"""
-
-    id: str
-    name: str
-    arguments: str  # JSON 字符串，原样保留，由编排层解析
-
-
-@dataclass
-class LLMChunk:
-    """流式块。约定：delta 与 tool_calls 不同时出现；
-    tool_calls（聚合完成态）只出现在流的最后一个块。"""
-
-    delta: str | None = None
-    tool_calls: list[ToolCallRequest] | None = None
-    finish_reason: str | None = None  # "stop" | "tool_calls" | "length"
-
-
-class LLMClient(Protocol):
-    """子任务 3 的实现契约：流式增量封装在适配器内，编排层只见块序列。"""
-
-    def stream(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None = None,
-    ) -> AsyncIterator[LLMChunk]: ...
-
-
-# ---------------------------------------------------------------------------
-# 常量区
-# ---------------------------------------------------------------------------
 
 # 系统提示词唯一真源在 prompts.py（版本化，评测按 PROMPT_VERSION 归因）；
 # 此处保留别名，现有测试与调用方不感知迁移。
@@ -101,60 +48,6 @@ DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT
 
 # 星期中文映射（05 §6.3 遗留项①：当前日期注入的换算辅助）
 _WEEKDAY_CN = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-
-# 规则 → 优先级 / 归属映射（11 §4.2 SLA 表，设计文档 F2）
-REDLINE_PRIORITY: dict[str, HandoffPriority] = {
-    "R5_生命优先": HandoffPriority.P0,
-    "R3_敏感信息": HandoffPriority.P1,
-    "R4_不代表达诉求": HandoffPriority.P1,
-    "R1_终局性结论": HandoffPriority.P2,
-}
-REDLINE_OWNER: dict[str, str] = {
-    "R5_生命优先": "学生工作部/心理中心",
-    "R3_敏感信息": "现代教育技术中心",
-    "R4_不代表达诉求": "二级学院教务办",
-    "R1_终局性结论": "二级学院教务办",
-}
-
-R5_LIFELINE_SCRIPT = (
-    "同学你好，谢谢你愿意把这些说出来，你现在的安全是最重要的事。"
-    "学校心理健康中心随时可以为你提供支持（大学生活动中心 3 楼），"
-    "24 小时心理援助热线：0730-8888888，也可以直接联系你的辅导员。"
-    "已为你转接人工老师，请一定留意回复，我们不会让你一个人面对。"
-)
-
-BLOCKED_REPLY_TEMPLATES: dict[str, str] = {
-    "R1_终局性结论": (
-        "毕业资格、学籍等终局性判断需要由二级学院教务办老师依据正式规则答复，"
-        "我不能代替老师下结论。已为你创建人工工单，老师会尽快联系你，请留意回复。"
-    ),
-    "R3_敏感信息": (
-        "这个问题涉及个人敏感信息，为保护同学隐私我无法直接处理。"
-        "已为你转接相关老师核实处理，请留意回复。"
-    ),
-    "R4_不代表达诉求": (
-        "代你提交正式申请需要本人操作或人工老师协助完成，我不能代替你表达诉求。"
-        "已为你创建人工工单，老师会联系你一起完成，请留意回复。"
-    ),
-}
-
-# 写工具的服务端注入字段（F4b）；读工具仅剥离 student_id
-WRITE_GUARDED_FIELDS = ("student_id", "confirmed", "idempotency_key")
-
-# 阶段一唯一写白名单成员（F4b 门禁适用范围）
-RENEW_TOOL_NAME = "library_renew"
-
-# 续借确认关键词集（确定性匹配，P4：授权判定不允许概率性组件）
-RENEW_CONFIRM_KEYWORDS = ("确认续借", "确定续借", "继续续借", "确认", "确定")
-
-HARD_FUSE_SCRIPT = (
-    "查询步骤较多暂时未能完成，建议把问题拆分得更具体一些，"
-    "或者直接转人工老师协助处理。给你带来不便非常抱歉。"
-)
-
-# 不暴露给 LLM 的工具（F4b）：handoff_create 由编排层确定性路径调用（F2），
-# 不经 LLM——否则模型可伪造 hit_rules/priority 生成 P0 危机工单
-LLM_EXCLUDED_TOOLS = ("handoff_create",)
 
 
 class LLMStreamFailure(Exception):
@@ -197,9 +90,13 @@ def _find_last_renew_call(
     return None
 
 
-# ---------------------------------------------------------------------------
-# 主类
-# ---------------------------------------------------------------------------
+def _result_digest(dumped: dict[str, Any]) -> dict[str, Any]:
+    """tool_result 事件只放摘要级结果（如 {count: 5}），不搬运大 payload。"""
+    digest: dict[str, Any] = {}
+    for key in ("items", "results"):
+        if isinstance(dumped.get(key), list):
+            digest["count"] = len(dumped[key])
+    return digest
 
 
 class Orchestrator:
@@ -258,8 +155,15 @@ class Orchestrator:
             compressed = False
             if len(probe) > self.settings.session_history_limit:
                 yield self._emit(EventType.THINKING, {"phase": "compressing"}, session)
-                compressed = await self._compress_or_degrade(
-                    student_id, session, probe, trace_id
+                compressed = await compress_or_degrade(
+                    store=self.store,
+                    llm=self.llm,
+                    settings=self.settings,
+                    student_id=student_id,
+                    session=session,
+                    probe=probe,
+                    trace_id=trace_id,
+                    to_openai=self._to_openai,
                 )
                 if compressed:
                     # 压缩成功后重载（此时活跃 = 摘要 + 最近 6 条 ≈ 7 条）
@@ -431,63 +335,6 @@ class Orchestrator:
             },
             session,
         )
-
-    # ---- F3 会话压缩 ----
-
-    SUMMARY_SYSTEM_PROMPT = (
-        "你是会话压缩器。请把以下对话历史压缩为不超过 200 字的中文摘要，"
-        "只保留用户意图与关键结论；不得包含成绩数值与任何身份证明文（R3）。"
-        "直接输出摘要正文，不要任何解释。"
-    )
-
-    async def _compress_or_degrade(
-        self, student_id: str, session, probe: list[Message], trace_id: str
-    ) -> bool:
-        """调 LLM 生成摘要并 ``store.compress`` 落库；失败降级返回 False。
-
-        降级正确性无损：最新消息在探测窗口内（P0-1 尾部窗口语义），
-        调用方以 probe 为上下文继续对话。
-        """
-        kept_tail = max(4, self.settings.session_compress_tail)
-        to_summarize = probe[:-kept_tail] if len(probe) > kept_tail else []
-        if not to_summarize:
-            return False
-
-        summary_messages: list[dict] = [
-            {"role": "system", "content": self.SUMMARY_SYSTEM_PROMPT},
-            *(self._to_openai(m) for m in to_summarize),
-        ]
-        text = ""
-        try:
-            # 非流式场景：忽略 delta 逐块拼接，不 yield token（摘要对用户不可见）
-            async for chunk in self.llm.stream(summary_messages, tools=None):
-                if chunk.delta:
-                    text += chunk.delta
-        except Exception:
-            logger.exception("summary_llm_failed")
-            return False
-
-        summary = text.strip()[: self.settings.orchestrator_summary_max_chars]
-        if not summary:
-            logger.warning("summary_empty_skipped")
-            return False
-
-        comp = await self.store.compress(session.session_id, summary)
-        try:
-            await write_audit(
-                self.store.db,
-                action="session_compress",
-                student_id=student_id,
-                session_id=session.session_id,
-                args_digest={
-                    "summarized_count": comp.summarized_count,
-                    "kept_tail": comp.kept_tail,
-                },
-                result="ok",
-            )
-        except Exception:
-            logger.exception("session_compress_audit_failed")
-        return True
 
     # ---- F4 工具路由主循环 ----
 
@@ -884,12 +731,3 @@ class Orchestrator:
             if not m.is_summary:
                 messages.append(self._to_openai(m))
         return messages
-
-
-def _result_digest(dumped: dict[str, Any]) -> dict[str, Any]:
-    """tool_result 事件只放摘要级结果（如 {count: 5}），不搬运大 payload。"""
-    digest: dict[str, Any] = {}
-    for key in ("items", "results"):
-        if isinstance(dumped.get(key), list):
-            digest["count"] = len(dumped[key])
-    return digest
