@@ -40,6 +40,9 @@ htmlcov/
 # WorkBuddy 工作区记忆与本地状态，不属于项目源码
 .workbuddy/
 
+# 本地产物：简历（docx/pdf/html）与 html-to-docx 转换 venv
+output/
+
 # ---------- 操作系统 ----------
 .DS_Store
 Thumbs.db
@@ -48,3 +51,6 @@ desktop.ini
 # 黄金集运行产物（17）：fake 产物只做门禁比对不入库；live 结果留档提交
 backend/eval/results/*
 !backend/eval/results/live-*.json
+
+# FAQ 候选导出（11 §4.1 回流线 K6）：含学生原话，属内部人工审核材料不入库
+backend/faq_candidates/

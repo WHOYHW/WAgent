@@ -18,7 +18,7 @@
 
 ```
 WAgent/
-├── docs/                     设计文档集（docs/ 11 篇 + docs/项目文档/ 任务设计 17 篇，含 Mermaid 流程图）
+├── docs/                     设计文档集（docs/ 11 篇 + docs/项目文档/ 任务设计 18 篇，含 Mermaid 流程图）
 │   ├── README.md             文档索引与阅读路径
 │   ├── 00-行业总览-校园业务全景与AI落地地图.md
 │   ├── 01-业务域-教务与学工.md
@@ -102,7 +102,13 @@ pip install -r requirements.txt
 - [x] 工程化基线：lint（ruff，含 TID251 禁用清单）+ 分层导入契约（import-linter 两契约，AC-16b 负向验证通过）+ CI（GitHub Actions）——238 项测试、09 D1 裁决与 12 分层架构由机器强制（任务设计 [`docs/项目文档/16-工程化基线设计.md`](./docs/项目文档/16-工程化基线设计.md)，AC-16a/b 本地达成；AC-16c Actions 首跑 / AC-16d 分支保护待 push 后在仓库设置验证）
 - [x] 评测黄金集与端到端联调：20 条起步用例（Pydantic 建模 + 受控词表校验）→ run_eval 两档运行器（fake 脚本档 CI 可跑 / --live 真机档手动留档）→ score 评分器（D3 红线零容忍 + baseline 不回退门禁 + 退出码 0/1/2），CI 在 pytest 后追加评测门禁；fake 档 20/20，live 档首跑 16/20（4 条失败定性为用例/桩错配并修正：桩补真实在借、quiet-hours 期望改如实能力边界、2 条标 fake_only），AC-17c 实弹演习通过（任务设计 [`docs/项目文档/17-评测黄金集设计.md`](./docs/项目文档/17-评测黄金集设计.md)；[cases.py](./backend/eval/cases.py)｜[run_eval.py](./backend/eval/run_eval.py)｜[score.py](./backend/eval/score.py)）
 - [x] 加固与重构收尾（P3）：会话身份层专属测试 8 项（无令牌/篡改/过期/伪造身份/越权访问，全走 httpx ASGITransport 模式）+ `ToolSpec.parameters` 导出层剥离 `student_id`（约定③ 补齐：模型在导出 Schema 中看不到该参数，与编排层覆盖回填互为兜底）+ `orchestrator.py` 拆包（857 行 → `app/orchestrator/` 包 events / guardrail_assets / summarize / loop 四模块，`__init__.py` 重导出保持公共 API 不变）+ 文档收尾（15 §7 工程化约定、docs 索引补 16/17）；日常门禁命令速查见 [`docs/15-阶段一-核心设计任务实施规范.md` §7](./docs/15-阶段一-核心设计任务实施规范.md)
+- [x] 知识库检索（RAG，实施设计 [`docs/项目文档/18-知识库检索RAG设计.md`](./docs/项目文档/18-知识库检索RAG设计.md)）
+  - [x] K1 数据契约与切块：三策略纯函数（条款/标题/FAQ + 行感知滑窗回退，≤500 字不丢正文）+ `KbChunk` 表 + Alembic 0005（FTS5-trigram 虚表 + 三触发器）
+  - [x] K2 检索内核：`EmbeddingClient` 协议 + `FakeEmbedder` 确定性桩 + `HybridRetriever`（FTS5-trigram + numpy 余弦 → RRF → 阈值门，四态模式，同查询必同结果）
+  - [x] K4 `kb_search` 工具接入：registry 门控注册（kb_enabled=False 不进工具表）+ C4 降级链 + 提示词 v2（PROMPT_VERSION 2026-11-08.1）+ 黄金集 kb 类 4 条（fake 档 24/24）
+  - [x] K5 入库管线 CLI：`python -m app.kb.ingest`（--seed/--dry-run/--fixture，博达正文提取 + 单事务落库 + 幂等铁证 AC-18e）+ 首批种子 15 篇（真机落库待方舟 embedding 接入点开通后执行，见 18 验收状态）
+  - [x] K6 收尾：handoff→FAQ 只读导出回流线 `python -m app.kb.faq_export`（聚类纯函数 LLM 零参与，人审核兜底，[文档 11 §4.4](./docs/11-阶段一-AI可执行与人工兜底边界矩阵.md)）+ live 评测 v1/v2 提示词分数对比留档（[live-2026-11-09.json](./backend/eval/results/live-2026-11-09.json)，18/19）
 
 ---
 
-*阶段一交付 ｜ 文档版本 v1.1（2026-11-04）*
+*阶段一交付 ｜ 文档版本 v1.2（2026-11-09）*
