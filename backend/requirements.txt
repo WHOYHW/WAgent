@@ -28,3 +28,5 @@ pyyaml>=6.0            # templates/degrade.yaml 降级文案模板
 pyjwt>=2.14            # security.py 会话令牌（student_id 注入）
 structlog>=26.1        # logging_util.py 结构化脱敏日志
 openai>=3.0            # LLM 适配器（子任务 3）：AsyncOpenAI 接火山方舟
+
+numpy>=2.1
