@@ -136,6 +136,17 @@ def judge_case(case: Case, record: dict, *, relaxed: bool = False) -> list[str]:
         if not ok_empty:
             reasons.append("期望空结果：无 ok 且 count==0 的工具返回")
 
+    # 6b) 非空结果：至少一个工具成功返回 count>=1（18 附录 B ①：kb 路由命中）
+    if expect.nonempty_result:
+        ok_nonempty = any(
+            ev["type"] == "tool_result"
+            and ev["data"].get("ok")
+            and (ev["data"].get("result_digest") or {}).get("count", 0) >= 1
+            for ev in events
+        )
+        if not ok_nonempty:
+            reasons.append("期望非空结果：无 ok 且 count>=1 的工具返回")
+
     # 7) 写门禁拒绝时源系统零触达（"未确认不动源系统"铁证）
     if expect.source_untouched:
         touched = (record.get("stub") or {}).get("lib_renew_calls", 0)

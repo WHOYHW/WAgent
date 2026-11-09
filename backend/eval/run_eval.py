@@ -26,15 +26,17 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+import numpy as np
+from sqlalchemy import select, text
 
 from app.cache import TTLCache
 from app.config import Settings
 from app.conversation import SessionStore
 from app.db import make_engine
+from app.kb import KB_FTS_TABLE_DDL, KB_FTS_TRIGGER_DDLS, FakeEmbedder, HybridRetriever, make_doc_id
 from app.llm.adapter import ArkLLMClient
 from app.orchestrator import EventType, LLMChunk, Orchestrator, ToolCallRequest
-from app.orm import AuditLog, Base
+from app.orm import AuditLog, Base, KbChunk
 from app.prompts import PROMPT_VERSION
 from app.schemas.meta import AdapterResponse, DegradeStatus, ToolSource
 from app.schemas.timetable import TimetableItem
@@ -220,6 +222,7 @@ _TOOL_ARGS: dict[str, dict] = {
     "library_loans": {},
     "reminder_subscribe": {"subject": "library_due"},
     "library_renew": {"barcodes": ["01020"]},
+    "kb_search": {"query": "转专业条件"},
 }
 
 
@@ -295,11 +298,55 @@ async def make_db():
     await engine.dispose()
 
 
-def _settings(live: bool) -> Settings:
+def _settings(live: bool, case: Case) -> Settings:
+    """运行档位设置：fake 档 llm_model 标脚本桩（归因不撒谎）；kb 类与预灌语料
+    用例强制开启 kb 门控（工具注册是场景前提，18 附录 B v1.5）。"""
     if live:
         return Settings()
-    # fake 档把 llm_model 标为脚本桩，审计归因不撒谎（P2 归因闭环）
-    return Settings(llm_model="fake-script")
+    return Settings(
+        llm_model="fake-script",
+        kb_enabled=case.stub_setup.kb_corpus or case.klass == "kb",
+    )
+
+
+# kb 语料夹具（18 附录 B）：与 test_kb_retriever 同源的转专业条款块。
+_KB_CLAUSE = (
+    "第一条 转专业条件：平均学分绩点排名专业前百分之二十，"
+    "转专业申请于每学期第二周提交。"
+)
+_KB_URL = "https://jwc.hnist.cn/gzzd/xjgl.htm"
+
+
+async def _ensure_kb_fts(db) -> None:
+    """建 FTS 虚表 + 触发器（单源 DDL，迁移 0005 同款）。"""
+    await db.execute(text(KB_FTS_TABLE_DDL))
+    for _, ddl in KB_FTS_TRIGGER_DDLS:
+        await db.execute(text(ddl))
+    await db.commit()
+
+
+async def _preload_kb(db) -> None:
+    """预灌固定语料：条款块 + FakeEmbedder 确定性向量（零网络，hybrid 双路成立）。"""
+    now = datetime.now(UTC)
+    (vec,) = await FakeEmbedder().embed_texts([_KB_CLAUSE])
+    db.add(
+        KbChunk(
+            doc_id=make_doc_id(_KB_URL),
+            section_idx=0,
+            anchor="第一条",
+            title="转专业实施办法",
+            content=_KB_CLAUSE,
+            embedding=np.asarray(vec, dtype=np.float32).tobytes(),
+            embedding_model="doubao-embedding",
+            content_hash="0" * 64,
+            source_url=_KB_URL,
+            column="教务处/规章制度",
+            corpus_version="2026-11-05.1",
+            fetched_at=now,
+            synced_at=now,
+        )
+    )
+    await db.commit()
 
 
 async def _audit_trace(db, session_id: str) -> dict:
@@ -330,12 +377,24 @@ async def run_case(case: Case, *, live: bool) -> dict:
     edu = EvalEduAdapter(case.stub_setup.edu)
     lib = EvalLibAdapter(case.stub_setup.lib)
     async with make_db() as db:
-        settings = _settings(live)
+        settings = _settings(live, case)
+        if settings.kb_enabled:
+            # FTS 虚表独立于语料行（内存库 create_all 不建虚表；空库诚实用例
+            # 也必须有表，否则 FTS 查询直接 OperationalError）
+            await _ensure_kb_fts(db)
+        if case.stub_setup.kb_corpus:
+            await _preload_kb(db)
         store = SessionStore(db, settings)
         services = Services(
             cache=TTLCache(),
             settings=settings, edu=edu, lib=lib, db=db,
             idempotency={}, renew_session_count={},
+            # 显式注入 FakeEmbedder 桩（覆盖 Services 懒装配的真机档，零网络）
+            kb_retriever=(
+                HybridRetriever(settings, embedder=FakeEmbedder())
+                if settings.kb_enabled
+                else None
+            ),
         )
         registry = build_registry(services)
         if live:
@@ -432,7 +491,7 @@ def main() -> int:
         "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
         "mode": "live" if args.live else "fake",
         "prompt_version": PROMPT_VERSION,
-        "llm_model": _settings(args.live).llm_model,
+        "llm_model": _settings(args.live, CASES[0]).llm_model,
         "python": platform.python_version(),
         "platform": platform.platform(),
         "cases": records,

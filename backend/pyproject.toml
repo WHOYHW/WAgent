@@ -33,6 +33,12 @@ type = "independence"
 modules = ["app.reminder", "app.orchestrator"]
 
 [[tool.importlinter.contracts]]
+name = "知识库内核不感知编排/LLM 层（18 §五 v1.5：异常本地定义，协议由调用方适配）"
+type = "forbidden"
+source_modules = ["app.kb"]
+forbidden_modules = ["app.orchestrator", "app.llm"]
+
+[[tool.importlinter.contracts]]
 name = "主链路分层单向（12 分层架构机器化）"
 type = "layers"
 layers = [
@@ -41,6 +47,7 @@ layers = [
     "app.orchestrator",
     "app.reminder",
     "app.tools",
+    "app.kb",          # 位于 app.tools 之下（18 AC-18d：kb_search 工具层 import 检索内核）
     "app.conversation",
     "app.adapters",
     "app.guardrail", "app.stale", "app.degrade", "app.logging_util",

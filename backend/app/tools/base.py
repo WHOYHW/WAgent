@@ -19,6 +19,7 @@ from ..adapters import EduAdapter, LibAdapter
 from ..cache import TTLCache
 from ..config import Settings
 from ..config import settings as default_settings
+from ..kb import ArkEmbeddingClient, HybridRetriever, Retriever
 from ..logging_util import get_logger, write_audit
 from ..security import mask_student_id
 
@@ -107,6 +108,9 @@ class Services:
     settings: Settings = field(default_factory=lambda: default_settings)
     edu: EduAdapter | None = None
     lib: LibAdapter | None = None
+    # kb_search 检索内核（文档 18 §五 v1.5）：显式注入（测试/黄金集 FakeEmbedder
+    # 桩）优先；未注入且 kb_enabled=True 时 __post_init__ 懒装配真机档。
+    kb_retriever: Retriever | None = None
     db: AsyncSession | None = None
     # 续借幂等与频控（会话级，生产应迁移至 Redis/DB 唯一约束）
     idempotency: dict[str, BaseModel] = field(default_factory=dict)
@@ -117,6 +121,12 @@ class Services:
             self.edu = EduAdapter(self.cache, settings=self.settings)
         if self.lib is None:
             self.lib = LibAdapter(self.cache, settings=self.settings)
+        # 懒装配（构造零副作用）：ArkEmbeddingClient 凭证未配置时首次检索才
+        # 报错，检索内核捕获后降级 FTS 单路——未配置是部署问题，启动不失败。
+        if self.kb_retriever is None and self.settings.kb_enabled:
+            self.kb_retriever = HybridRetriever(
+                self.settings, embedder=ArkEmbeddingClient(settings=self.settings)
+            )
 
 
 @dataclass

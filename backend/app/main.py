@@ -26,6 +26,7 @@ from .cache import make_cache
 from .config import settings
 from .conversation import SessionStore
 from .db import async_session_factory, get_db, init_db
+from .kb import ArkEmbeddingClient, HybridRetriever
 from .llm.adapter import ArkLLMClient
 from .logging_util import get_logger
 from .orchestrator import Event, LLMClient, Orchestrator
@@ -65,6 +66,13 @@ _shared_services = Services(
     settings=settings,
     edu=EduAdapter(_shared_cache, settings=settings),
     lib=LibAdapter(_shared_cache, settings=settings),
+)
+# kb 检索内核：进程级共享单例（文档 18 §五 v1.5）——矩阵缓存跨请求存活，
+# 镜像 edu/lib 共享适配器惯例。门控关闭时为 None（kb_search 不注册）；
+# 构造零副作用，embedder 凭证未配置时首次检索才报错降级 FTS 单路。
+_kb_embedder = ArkEmbeddingClient(settings=settings) if settings.kb_enabled else None
+_kb_retriever = (
+    HybridRetriever(settings, embedder=_kb_embedder) if settings.kb_enabled else None
 )
 # 续借幂等与会话频控必须跨请求存活（AC2.2 / R2.4）：
 # 进程内共享；生产迁移 Redis / DB 唯一约束（见 Services 注释）。
@@ -121,6 +129,8 @@ async def lifespan(app: FastAPI):
         # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
         await _shared_services.edu.aclose()
         await _shared_services.lib.aclose()
+        if _kb_embedder is not None:
+            await _kb_embedder.aclose()
         await _llm_client.aclose()
         await _push_adapter.aclose()
 
@@ -147,6 +157,7 @@ def _services(db: AsyncSession = Depends(get_db)) -> Services:
         settings=settings,
         edu=_shared_services.edu,
         lib=_shared_services.lib,
+        kb_retriever=_kb_retriever,
         db=db,
         idempotency=_shared_idempotency,
         renew_session_count=_shared_renew_counts,

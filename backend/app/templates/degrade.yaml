@@ -14,5 +14,6 @@ degrade_templates:
     timetable_query: "教务系统暂时无法访问，你可以稍后重试，或直接登录教务系统查看"
     grade_query: "成绩系统暂时无法访问，请稍后重试或联系学院教务办"
     library_loans: "图书馆系统暂时无法访问，可到馆或稍后重试"
+    kb_search: "知识库暂时无法访问，请稍后重试"
   write_failed:
     library_renew: "续借未成功（原因：{reason}），可到流通台办理"
