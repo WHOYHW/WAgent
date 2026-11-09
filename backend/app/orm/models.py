@@ -15,6 +15,7 @@ from sqlalchemy import (
     Boolean,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -95,6 +96,40 @@ class HandoffTicket(IdMixin, Base):
     first_response_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(TimestampTZ, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, nullable=False, server_default=func.now())
+
+
+class KbChunk(IdMixin, Base):
+    """知识库分块（文档 18 §三 v1.2）：一条网页正文切成 N 块，每块一行。
+
+    - 键裁决：唯一约束 ``(doc_id, section_idx)``——doc_id 由 make_doc_id(source_url)
+      确定性生成（整页删除粒度），section_idx 为切块器输出的页内序号；
+    - BLOB 存 float32 向量（D2：numpy 暴力余弦，不上向量库），None = 尚未向量化；
+    - provenance 按块冗余（denormalized）：检索命中行自带全部溯源信息，免 join；
+    - FTS5 虚表 kb_chunk_fts（trigram，external content 模式）由迁移 0005 的
+      原生 SQL 建，不进 ORM 元数据，INSERT/UPDATE/DELETE 由触发器同步。
+    """
+
+    __tablename__ = "kb_chunk"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "section_idx", name="uq_kb_chunk_doc_section"),
+        Index("idx_kb_chunk_doc", "doc_id"),
+    )
+
+    doc_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    section_idx: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 切块锚（chunking.KbChunkDraft.anchor）：条款号/markdown 标题/FAQ 问题行
+    anchor: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # sha256
+    # ---- provenance 全字段（按块冗余）----
+    source_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    column: Mapped[str] = mapped_column(String(128), nullable=False)
+    corpus_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(TimestampTZ, nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(TimestampTZ, nullable=False)
 
 
 class AuditLog(IdMixin, Base):

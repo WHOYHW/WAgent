@@ -115,6 +115,28 @@ class Settings(BaseSettings):
     orchestrator_history_fetch_limit: int = 60      # 历史探测/上下文窗口（> history_limit
                                                     # 才能检测超阈值；降级时兜住最新消息）
 
+    # ---- 知识库检索 RAG（文档 18 §六，K1 v1.2）----
+    # D5 总门控：False 时 kb_search 不注册、ingest CLI 拒绝运行（能力上线是运营决策）。
+    kb_enabled: bool = False
+    # D4：方舟 embedding 模型 ID，base_url/key 复用 llm 既有凭证，零新增凭证面。
+    kb_embedding_model: str = "doubao-embedding"
+    kb_top_k: int = 4                            # 返回给 LLM 的块数上限
+    kb_chunk_max_chars: int = 500                # 切块单块长度上限（滑窗窗口长同值；重叠固定 50）
+    # RRF 融合分过滤线：k=60 下单路 rank≤6 过线（1/66≈0.0152，rank-7=1/67≈0.0149），
+    # 双路共现分远高于此；候选池 20 时旧值 0.01 对池内任何结果（rank-20=1/80=0.0125）
+    # 都不构成过滤，语义失真已修正。弱匹配时少返回而非凑满 top_k
+    kb_score_threshold: float = 0.015
+    kb_rrf_k: int = 60                           # RRF 融合常数（D3）
+    kb_corpus_version: str = "2026-11-05.1"      # 语料版本锚，随正式灌库递增
+    kb_stale_hours: int = 24 * 30                # 语料陈旧判定（知识比课表陈旧得慢）
+    kb_crawl_depth: int = 3                      # 抓取深度上限
+    kb_request_interval_seconds: float = 1.0     # 抓取节流（对校方站点的礼貌下限）
+    # K3 v1.4 真机档：ArkEmbeddingClient 批量请求大小（ingest 批量向量化切批）
+    kb_embedding_batch_size: int = 16
+    # 期望向量维度：None=不校验只报告实际维度；配置时全批维度必须一致且等于
+    # 该值（--live 冒烟判据 + 入口防脏，检索内核矩阵加载降级是第二道兜底）
+    kb_embedding_dim: int | None = None
+
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"
