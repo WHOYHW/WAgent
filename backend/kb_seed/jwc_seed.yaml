@@ -1,0 +1,52 @@
+# WAgent 知识库首批语料种子（文档 18 附录 A v1.6 实勘收窄 2026-11-09）。
+#
+# 勘察结论：jwc.hnist.cn 规章制度文章正文全部 FlexPaper-SWF/扫描图/PDF 内嵌
+# （零可提取文本），办事指南栏目壳页是链接列表、正文在子文章页。本清单按
+# 「有正文文本」硬标准人工核实（2026-11-09 实测文本长度标注于注释）。
+# strategy 显式指定（无隐藏默认值）：无锚页（指南/纪律）走 heading（无标题行
+# 自动滑窗回退）；条款型规章走 clause。
+- url: https://jwc.hnist.cn/info/1045/2116.htm   # 学生休复学工作流程（207 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/2118.htm   # 选课办理流程（239 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/2119.htm   # 重修办理流程（407 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/2121.htm   # 缓考办理流程（379 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/4432.htm   # 学生保留学籍办理流程（314 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/4442.htm   # 学生保留入学资格办理流程（432 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/4443.htm   # 学生恢复入学资格办理流程（240 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/6904.htm   # 辅修/微专业免听免修退修流程（287 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/6905.htm   # 创新训练项目申报结题流程（162 字，预计 <200 诚实跳过）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1045/6906.htm   # 学生教材结算流程（349 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1044/3404.htm   # 办理毕业证明书须知（503 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1048/2134.htm   # 冬季作息时间表（410 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1048/2135.htm   # 夏季作息时间表（670 字）
+  column: 教务处/办事指南
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1019/1906.htm   # 学生考场纪律（3094 字）
+  column: 教务处/考务管理
+  strategy: heading
+- url: https://jwc.hnist.cn/info/1022/4189.htm   # 教育部令第41号《普通高等学校学生管理规定》（9213 字，含学籍章节）
+  column: 教务处/上级政策法规
+  strategy: clause
