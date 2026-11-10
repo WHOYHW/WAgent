@@ -137,6 +137,11 @@ class Settings(BaseSettings):
     # 该值（--live 冒烟判据 + 入口防脏，检索内核矩阵加载降级是第二道兜底）
     kb_embedding_dim: int | None = None
 
+    # ---- MCP 服务暴露（文档 19 §二 D4）----
+    # 总门控：False 时 /mcp 不挂载、stdio 入口拒绝启动（镜像 kb_enabled 的 D5 哲学：
+    # 能力上线是运营决策，不是代码合并的副作用）。
+    mcp_enabled: bool = False
+
     @property
     def is_dev(self) -> bool:
         return self.env == "dev"

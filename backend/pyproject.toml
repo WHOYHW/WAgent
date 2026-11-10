@@ -43,6 +43,7 @@ name = "主链路分层单向（12 分层架构机器化）"
 type = "layers"
 layers = [
     "app.main",        # 顶层装配，唯一允许 import 一切的位置
+    "app.mcp",         # MCP 服务暴露（19）：campus_agent_chat 包装编排层、读工具桥接 registry——位于 main 之下、orchestrator 之上
     "app.llm",         # 仅依赖 orchestrator 的冻结协议（03 §2.4）
     "app.orchestrator",
     "app.reminder",
