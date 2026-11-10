@@ -54,3 +54,6 @@ backend/eval/results/*
 
 # FAQ 候选导出（11 §4.1 回流线 K6）：含学生原话，属内部人工审核材料不入库
 backend/faq_candidates/
+
+# KB ingest / MCP 测试 subprocess 工作目录（18 AC-18e 幂等验证等的临时产物）
+.pytest_tmp/

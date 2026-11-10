@@ -13,6 +13,13 @@ import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# 钉默认部署形态（必须先于任何 app 模块导入）：门控测试（test_mcp_server 的
+# test_gate_default_no_mount / stdio subprocess）不依赖「.env 没设 MCP_ENABLED」
+# 这一环境事实——联调时 .env 开了 MCP_ENABLED 也不能让门控测试翻转。
+import os  # noqa: E402
+
+os.environ["MCP_ENABLED"] = "false"
+
 from app.cache import TTLCache  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.db import make_engine  # noqa: E402

@@ -108,7 +108,11 @@ pip install -r requirements.txt
   - [x] K4 `kb_search` 工具接入：registry 门控注册（kb_enabled=False 不进工具表）+ C4 降级链 + 提示词 v2（PROMPT_VERSION 2026-11-08.1）+ 黄金集 kb 类 4 条（fake 档 24/24）
   - [x] K5 入库管线 CLI：`python -m app.kb.ingest`（--seed/--dry-run/--fixture，博达正文提取 + 单事务落库 + 幂等铁证 AC-18e）+ 首批种子 15 篇（真机落库待方舟 embedding 接入点开通后执行，见 18 验收状态）
   - [x] K6 收尾：handoff→FAQ 只读导出回流线 `python -m app.kb.faq_export`（聚类纯函数 LLM 零参与，人审核兜底，[文档 11 §4.4](./docs/11-阶段一-AI可执行与人工兜底边界矩阵.md)）+ live 评测 v1/v2 提示词分数对比留档（[live-2026-11-09.json](./backend/eval/results/live-2026-11-09.json)，18/19）
+- [x] MCP 服务暴露（实施设计 [`docs/项目文档/19-MCP服务暴露设计.md`](./docs/项目文档/19-MCP服务暴露设计.md)）
+  - [x] M1 设计先行：D1~D4 裁决（身份传输层 JWT 注入 / 只直暴 write=False 且 boundary=AI 读工具 / Streamable HTTP 挂现有 FastAPI + stdio 演示双入口 / `mcp_enabled=False` 门控）+ 附录 A 暴露词表与排除理由
+  - [x] M2 桥接与挂载：`app/mcp/`（identity 中间件按 /mcp 前缀强制 Bearer JWT + contextvar 注入、bridge 属性过滤 + 期望集冻结断言 fail fast、每调用独立 db 会话经 registry.dispatch 统一审计 channel="mcp"）；HTTP 档 mount /mcp + 父 lifespan 内驱动 session manager（python-sdk#1367 坑）、stdio 入口 `python -m app.mcp` 双门控（MCP_DEMO_STUDENT_ID，dev-only，channel="mcp-stdio"）
+  - [x] M2 chat 通道：`campus_agent_chat` 整体包装 `Orchestrator.run()`（事件流收口为 `{session_id, reply, blocked}`）——外部客户端获得完整护栏（红线 F2 / 写门禁 F4b / 熔断 F5）的唯一通道，写工具永不直暴；`app.mcp` 进 import-linter layers（main 之下、orchestrator 之上）
 
 ---
 
-*阶段一交付 ｜ 文档版本 v1.2（2026-11-09）*
+*阶段一交付 ｜ 文档版本 v1.3（2026-11-10）*
