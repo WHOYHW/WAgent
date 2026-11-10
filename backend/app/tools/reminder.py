@@ -35,6 +35,7 @@ SPEC = ToolSpec(
     result_model=ReminderSubscribeResult,
     preconditions=("学号已绑定（会话注入）", "subject 在枚举内"),
     postconditions=("订阅即时生效或即时取消",),
+    write=True,  # 语义是写（订阅库幂等 upsert，非业务系统写）；M2 修正缺失标注（文档 19 附录 A）
 )
 
 
