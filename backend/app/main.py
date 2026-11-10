@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from datetime import UTC, date, datetime
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -29,6 +29,7 @@ from .db import async_session_factory, get_db, init_db
 from .kb import ArkEmbeddingClient, HybridRetriever
 from .llm.adapter import ArkLLMClient
 from .logging_util import get_logger
+from .mcp import mcp_lifespan, mount_mcp
 from .orchestrator import Event, LLMClient, Orchestrator
 from .orm import ReminderDispatch
 from .reminder.engine import ReminderEngine
@@ -120,19 +121,25 @@ async def lifespan(app: FastAPI):
         )
     # 心跳启动（R3a 三接线之一）：enabled=false 时内部 no-op。
     await _reminder_engine.start()
-    try:
-        yield
-    finally:
-        # 先停心跳再关适配器（实施设计 10 §四顺序约定）：
-        # 扫描停止后不再有适配器消费者；finally 保证清理必达。
-        await _reminder_engine.stop()
-        # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
-        await _shared_services.edu.aclose()
-        await _shared_services.lib.aclose()
-        if _kb_embedder is not None:
-            await _kb_embedder.aclose()
-        await _llm_client.aclose()
-        await _push_adapter.aclose()
+    async with AsyncExitStack() as stack:
+        if _mcp_server is not None:
+            # MCP 会话管理器必须在父 lifespan 中手动启动：app.mount() 不执行
+            # 子应用 lifespan（python-sdk#1367）——不启动则所有 /mcp 请求静默失败。
+            # yield 前 enter、后 exit（文档 19 §二 D3）。
+            await stack.enter_async_context(mcp_lifespan(_mcp_server))
+        try:
+            yield
+        finally:
+            # 先停心跳再关适配器（实施设计 10 §四顺序约定）：
+            # 扫描停止后不再有适配器消费者；finally 保证清理必达。
+            await _reminder_engine.stop()
+            # 释放共享适配器与 LLM 客户端的 HTTP 连接池。
+            await _shared_services.edu.aclose()
+            await _shared_services.lib.aclose()
+            if _kb_embedder is not None:
+                await _kb_embedder.aclose()
+            await _llm_client.aclose()
+            await _push_adapter.aclose()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -241,6 +248,24 @@ class ChatRequest(BaseModel):
 # ---- 元数据与 Schema 导出 ----
 
 _registry = build_registry(_shared_services)
+
+# ---- MCP 服务暴露（文档 19 §二 D3/D4，M2）----
+# mcp_enabled=True 时挂载 /mcp（身份中间件仅覆盖该前缀）；False 时根本不挂载
+# ——/mcp 保持 404，默认部署零行为变化（D4）。挂载本体会话管理器的启动由
+# lifespan 内 enter mcp_lifespan 完成（mount 不跑子应用 lifespan）。
+_mcp_server = (
+    mount_mcp(
+        app,
+        settings=settings,
+        registry=_registry,
+        session_factory=async_session_factory,
+        services_factory=_services,
+        # chat 工具每调用以独立 db 会话装配请求级编排器（镜像 get_orchestrator 依赖）
+        orchestrator_factory=lambda db: get_orchestrator(db, _llm_client),
+    )
+    if settings.mcp_enabled
+    else None
+)
 
 
 @app.get("/health")
