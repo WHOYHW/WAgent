@@ -24,6 +24,7 @@ from datetime import date
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -94,6 +95,12 @@ def build_mcp_server(
             "WAgent 校园助手只读工具面。身份由会话令牌注入：参数里不存在 "
             "student_id，所有查询只返回令牌主体本人的数据。"
         ),
+        # 显式关闭 MCP 层的 DNS rebinding 防护（Host/Origin 白名单）：mcp 1.2x 起
+        # 构造时 host=localhost 会自动开启该防护且白名单仅 127.0.0.1/localhost/::1，
+        # 非本机 Host（CI 的 testserver、生产域名）一律 421。本项目身份边界是
+        # /mcp 前缀的 JWT 中间件（无/坏令牌 401），Host 校验在此属重复防线；
+        # 若未来要启用，须把部署域写入 allowed_hosts 并跑 L3 HTTP 档护栏。
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 
     @mcp.tool()
