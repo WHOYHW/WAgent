@@ -32,4 +32,4 @@ openai>=3.0            # LLM 适配器（子任务 3）：AsyncOpenAI 接火山�
 numpy>=2.1
 
 # ---- MCP 服务暴露（19）----
-mcp>=1.20              # 官方 SDK（内置 FastMCP：mcp.server.fastmcp）；不引独立的 fastmcp 2.x 包（同名不同物，API 不兼容）
+mcp>=1.20,<2           # 官方 SDK（内置 FastMCP：mcp.server.fastmcp）；不引独立的 fastmcp 2.x 包（同名不同物，API 不兼容）。<2 钉死：mcp 2.x 把 FastMCP 改名 MCPServer 且 server.py 依赖 streamable_http_path 内部属性，升级须先跑 L3 HTTP 档护栏
