@@ -57,3 +57,10 @@ backend/faq_candidates/
 
 # KB ingest / MCP 测试 subprocess 工作目录（18 AC-18e 幂等验证等的临时产物）
 .pytest_tmp/
+
+# 企微机器人 webhook URL（20 O2 告警通道）：含 key 敏感信息不入库，
+# 按 ops/alertmanager/wecom_url.txt 模板本地创建
+ops/alertmanager/wecom_url.txt
+
+# 项目文档：仅本地保留，不上传仓库
+docs/
